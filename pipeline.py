@@ -52,6 +52,24 @@ MAX_TOTAL_WORDS = 78
 WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 
+DEFAULT_CANDIDATE_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-flash-latest",
+    "gemini-1.5-pro",
+    "gemini-pro-latest",
+]
+
+
+def get_candidate_models() -> list[str]:
+    user_model = os.getenv("GEMINI_MODEL")
+    if user_model:
+        return [user_model] + [m for m in DEFAULT_CANDIDATE_MODELS if m != user_model]
+    return list(DEFAULT_CANDIDATE_MODELS)
+
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -183,12 +201,7 @@ SADECE şu JSON şemasında çıktı ver:
   ]
 }}
 """
-    candidate_models = [
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-        "gemini-2.5-flash",
-        "gemini-3.6-flash",
-    ]
+    candidate_models = get_candidate_models()
 
     for attempt in range(3):
         for model in candidate_models:
@@ -214,6 +227,7 @@ SADECE şu JSON şemasında çıktı ver:
                         return best
             except Exception as exc:
                 log.warning("Topic discovery failed with %s: %s", model, exc)
+            time.sleep(1)
         time.sleep((attempt + 1) * 3)
 
     # Reliable fallback if API is unavailable
@@ -303,12 +317,7 @@ Kurallar:
 }}
 """
 
-    candidate_models = [
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
-        "gemini-2.5-flash",
-        "gemini-3.6-flash",
-    ]
+    candidate_models = get_candidate_models()
 
     for attempt in range(4):
         for model in candidate_models:
@@ -327,9 +336,42 @@ Kurallar:
                     return scenes, topic
             except Exception as exc:
                 log.warning("Script generation failed with %s: %s", model, exc)
+            time.sleep(1)
         time.sleep((attempt + 1) * 3)
 
-    raise RuntimeError("Could not generate a valid structured script")
+    log.warning("All Gemini model attempts failed (503/network); using curated historical fallback story.")
+    fallback_scenes = [
+        {
+            "narration": "1590 yılında Kuzey Karolina'daki Roanoke adasında akılalmaz bir gizem yaşandı.",
+            "image_prompt": "Cinematic vertical 9:16 shot of an abandoned wooden colonial fort on a misty island, 1590 era, photorealistic documentary style, 8k",
+        },
+        {
+            "narration": "115 İngiliz yerleşimci arkalarında hiçbir savaş veya saldırı izi bırakmadan kayboldu.",
+            "image_prompt": "Eerie empty village with silent wooden cabins, fog rolling through dirt streets, no people, dramatic lighting, vertical 9:16",
+        },
+        {
+            "narration": "Evler, eşyalar ve yiyecekler yerli yerinde öylece terk edilmişti.",
+            "image_prompt": "Close-up interior of a colonial wooden cottage, warm hearth, untouched dinner on wooden table, vertical 9:16, cinematic",
+        },
+        {
+            "narration": "Bulunan tek ipucu, yaşlı bir ağaca kazınmış gizemli bir kelimeydi:",
+            "image_prompt": "Dramatic close-up of a rustic wooden tree trunk with mysterious word CROATOAN carved deeply into bark, dark moody lighting, vertical 9:16",
+        },
+        {
+            "narration": "Kroatoan! Bu kelimenin anlamını ve yerleşimcilerin akıbetini kimse çözemedi.",
+            "image_prompt": "Ancient faded nautical parchment map showing North Carolina coast with mysterious symbols, vertical 9:16, historical documentary style",
+        },
+        {
+            "narration": "Yüzyıllar boyunca yapılan kazılar bile bu kayıp koloniden tek bir iz bulamadı.",
+            "image_prompt": "Modern archaeologists excavating historical earth beneath tall trees, moody sunset light, vertical 9:16, cinematic",
+        },
+        {
+            "narration": "Ve tarihin en karanlık sırrının cevabı aslında;",
+            "image_prompt": "Mysterious ghostly ship sailing into thick white fog under moonlight, vertical 9:16, photorealistic, 8k",
+        },
+    ]
+    return fallback_scenes, topic
+
 
 
 # -----------------------------
