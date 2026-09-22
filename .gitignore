@@ -35,6 +35,13 @@ output/
 *.jpg
 *.png
 
+# Allow tracked assets
+!assets/audio/*.mp3
+
+# Scratch & temporary debug files
+scratch_frames/
+scratch_*.py
+
 # Environments & secrets
 .env
 .env.local

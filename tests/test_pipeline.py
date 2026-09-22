@@ -765,6 +765,74 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     assert "publish_outcome" in res_yes
 
 
+def test_estimate_word_timestamps_distribution():
+    text = "Tarihin bilinmeyen en büyük sırrı ortaya çıktı"
+    words = pipeline.estimate_word_timestamps(text, total_duration=10.0)
+    assert len(words) == len(text.split())
+    assert words[0]["start"] >= 0.0
+    assert words[-1]["end"] <= 10.0
+    for i in range(len(words) - 1):
+        assert words[i]["end"] <= words[i + 1]["start"] + 0.05
+
+
+def test_get_ambient_music_local_asset(tmp_path):
+    dest = tmp_path / "test_music.mp3"
+    result = pipeline.get_ambient_music(dest)
+    assert result is not None
+    assert result.exists()
+    assert result.stat().st_size > 10_000
+    # Also verify that multiple royalty-free audio tracks exist in the assets directory
+    if pipeline.AUDIO_ASSETS_DIR.exists():
+        tracks = list(pipeline.AUDIO_ASSETS_DIR.glob("*.mp3"))
+        assert len(tracks) >= 3
+
+
+def test_crop_watermark_zone_maintains_dimensions(tmp_path):
+    from PIL import Image
+
+    # Square image test (e.g. 1024x1024)
+    img_path = tmp_path / "square_test.jpg"
+    img = Image.new("RGB", (1024, 1024), color=(120, 80, 40))
+    img.save(img_path)
+
+    pipeline.crop_watermark_zone(img_path)
+    with Image.open(img_path) as processed:
+        assert processed.size == (pipeline.VIDEO_WIDTH, pipeline.VIDEO_HEIGHT)
+
+
+def test_render_subtitle_image_long_text_scaling():
+    font = pipeline.get_subtitle_font(size=68)
+    long_words = ["GERÇEKLEŞTİRİLEMEDİ", "KAVRAMSALLAŞTIRILAMAZ", "MUVAFFAKİYETSİZLEŞTİRİCİ"]
+    arr = pipeline.render_subtitle_image(long_words, active_idx=0, font=font)
+    assert arr.shape == (220, 1080, 4)
+
+
+def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
+    fake_video = tmp_path / "low_bitrate.mp4"
+    # 55KB file for 25s duration gives only ~17 kbps
+    fake_video.write_bytes(b"\x00" * 55_000)
+
+    class DummyClip:
+        size = (1080, 1920)
+        duration = 25.0
+        audio = True
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+    monkeypatch.setattr(pipeline, "VideoFileClip", lambda p: DummyClip())
+    monkeypatch.setenv("MIN_BITRATE_KBPS", "1500")
+    try:
+        pipeline.validate_video_quality(fake_video)
+    except ValueError as exc:
+        assert "below minimum threshold" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for low bitrate")
+
+
 
 
 

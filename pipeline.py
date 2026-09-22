@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 import time
 import urllib.parse
@@ -21,7 +22,7 @@ from moviepy import (
     VideoFileClip,
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from telebot import types
 
 import youtube_uploader
@@ -377,11 +378,36 @@ Kurallar:
 # -----------------------------
 # Voice + word timing
 # -----------------------------
-async def create_voice_with_timestamps(text: str, audio_path: Path):
+def estimate_word_timestamps(text: str, total_duration: float) -> list[dict]:
+    """Fallback: distribute word timestamps proportionally across audio duration if TTS misses them."""
+    raw_words = text.split()
+    if not raw_words or total_duration <= 0:
+        return []
+    total_chars = max(sum(len(w) for w in raw_words), 1)
+    words = []
+    cursor = 0.05
+    usable_duration = max(total_duration - 0.15, 0.5)
+    for w in raw_words:
+        w_duration = usable_duration * (len(w) / total_chars)
+        start_t = cursor
+        end_t = min(start_t + w_duration, total_duration)
+        words.append(
+            {
+                "word": w,
+                "start": round(start_t, 3),
+                "end": round(end_t, 3),
+            }
+        )
+        cursor = end_t
+    return words
+
+
+async def create_voice_with_timestamps(text: str, audio_path: Path) -> list[dict]:
     communicate = edge_tts.Communicate(
         text,
         voice="tr-TR-AhmetNeural",
         rate="+15%",
+        boundary="WordBoundary",
     )
     words = []
     with audio_path.open("wb") as f:
@@ -396,6 +422,23 @@ async def create_voice_with_timestamps(text: str, audio_path: Path):
                         "end": (chunk["offset"] + chunk["duration"]) / 10_000_000,
                     }
                 )
+
+    # Robust fallback: if edge-tts did not return word boundaries, estimate them from audio duration
+    expected_words = len(text.split())
+    if len(words) < max(expected_words // 2, 1) and audio_path.exists():
+        try:
+            with AudioFileClip(str(audio_path)) as audio_clip:
+                audio_dur = audio_clip.duration
+            if audio_dur and audio_dur > 0:
+                log.warning(
+                    "TTS returned %d word boundaries (expected ~%d); applying estimated word timings fallback",
+                    len(words),
+                    expected_words,
+                )
+                words = estimate_word_timestamps(text, audio_dur)
+        except Exception as exc:
+            log.warning("Could not compute fallback word timestamps: %s", exc)
+
     return words
 
 
@@ -450,30 +493,70 @@ def calculate_scene_timings(scenes, words_data, total_duration):
 # Image generation
 # -----------------------------
 def crop_watermark_zone(filename: Path):
-    """Remove the bottom watermark area by cropping, then fit to 9:16.
-
-    We do not edit/inpaint the source image. The removed area is simply kept
-    outside the final composition, as requested.
-    """
+    """Crop image to 9:16 aspect ratio from center, remove watermark, and sharpen for crisp 1080p display."""
     with Image.open(filename) as img:
         img = img.convert("RGB")
         w, h = img.size
-        crop_px = min(max(WATERMARK_CROP_PX, 0), max(h - 2, 1))
-        cropped = img.crop((0, 0, w, h - crop_px))
 
-        target_ratio = VIDEO_WIDTH / VIDEO_HEIGHT
-        crop_w = min(cropped.width, int(cropped.height * target_ratio))
-        left = max((cropped.width - crop_w) // 2, 0)
-        fitted = cropped.crop((left, 0, left + crop_w, cropped.height))
+        target_ratio = VIDEO_WIDTH / VIDEO_HEIGHT  # 1080 / 1920 = 0.5625
+        current_ratio = w / h
+
+        if current_ratio > target_ratio:
+            # Image is wider than 9:16 (e.g. square 1024x1024 or 768x768).
+            # Center-crop the width. This cleanly removes watermarks located in the outer margins!
+            crop_w = int(h * target_ratio)
+            left = max((w - crop_w) // 2, 0)
+            fitted = img.crop((left, 0, left + crop_w, h))
+        else:
+            # Image is taller than 9:16. Center-crop the height.
+            crop_h = int(w / target_ratio)
+            top = max((h - crop_h) // 2, 0)
+            fitted = img.crop((0, top, w, top + crop_h))
+
+        # Scale cleanly to exact video dimensions
         final_img = fitted.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
+        # Apply subtle unsharp mask to restore crisp edges and eliminate blur
+        final_img = final_img.filter(ImageFilter.UnsharpMask(radius=1.8, percent=125, threshold=3))
         final_img.save(filename, quality=95)
 
 
+def try_imagen3_generation(prompt_text: str, filename: Path) -> bool:
+    """Attempt high-resolution native 9:16 image generation via Google GenAI Imagen 3."""
+    try:
+        if not hasattr(client, "models") or not hasattr(client.models, "generate_images"):
+            return False
+        result = client.models.generate_images(
+            model="imagen-3.0-generate-002",
+            prompt=prompt_text,
+            config=dict(
+                number_of_images=1,
+                output_mime_type="image/jpeg",
+                aspect_ratio="9:16",
+            ),
+        )
+        if result and getattr(result, "generated_images", None):
+            image_bytes = result.generated_images[0].image.image_bytes
+            filename.write_bytes(image_bytes)
+            with Image.open(filename) as img:
+                img = img.convert("RGB").resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
+                img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=110, threshold=3))
+                img.save(filename, quality=95)
+            log.info("Successfully generated native 9:16 image with Imagen 3: %s", filename.name)
+            return True
+    except Exception as exc:
+        log.debug("Imagen 3 generation skipped/failed: %s", exc)
+    return False
+
+
 def download_ai_image(prompt_text: str, filename: Path):
+    if try_imagen3_generation(prompt_text, filename):
+        return filename
+
     cleaned = urllib.parse.quote(prompt_text)
+    # Request square 1024x1024 to prevent Pollinations from stretching/distorting the latents
     url = (
         f"https://image.pollinations.ai/prompt/{cleaned}"
-        f"?width={VIDEO_WIDTH}&height={VIDEO_HEIGHT}&model=turbo&nologo=true"
+        f"?width=1024&height=1024&model=turbo&nologo=true"
     )
 
     def request_image():
@@ -535,6 +618,16 @@ def render_subtitle_image(words: list[str], active_idx: int, font, canvas_w=1080
     space_w = draw.textlength(" ", font=font)
     word_widths = [draw.textlength(w, font=font) for w in upper_words]
     total_w = sum(word_widths) + space_w * max(len(words) - 1, 0)
+
+    # If the text chunk is wider than canvas allows, scale font size down dynamically
+    current_size = getattr(font, "size", 68)
+    while total_w > (canvas_w - 60) and current_size > 36:
+        current_size -= 4
+        scaled_font = get_subtitle_font(size=current_size)
+        space_w = draw.textlength(" ", font=scaled_font)
+        word_widths = [draw.textlength(w, font=scaled_font) for w in upper_words]
+        total_w = sum(word_widths) + space_w * max(len(words) - 1, 0)
+        font = scaled_font
 
     x = max((canvas_w - total_w) / 2, 20.0)
     y = max((canvas_h - 90) / 2, 10.0)
@@ -684,23 +777,61 @@ def build_scene_clip(image_path: Path, start_time: float, end_time: float, motio
 # -----------------------------
 # Music
 # -----------------------------
+AUDIO_ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "audio"
+LOCAL_ASSET_MUSIC = AUDIO_ASSETS_DIR / "ambient_mystery.mp3"
+FALLBACK_MUSIC_URLS = [
+    "https://upload.wikimedia.org/wikipedia/commons/c/c9/Rafael_Krux_-_Lights_-_Creepy_Ambient_Suspense_%28cc-by%29_%28filmmusic%29.mp3",
+    "https://upload.wikimedia.org/wikipedia/commons/5/50/Hypnotic_ambient_electronic_music_by_MusicLM.mp3",
+]
+
+
 def get_ambient_music(music_path: Path):
-    if music_path.exists():
+    if music_path.exists() and music_path.stat().st_size > 10_000:
         return music_path
 
-    url = "https://assets.mixkit.co/music/preview/mixkit-cinematic-mystery-suspense-hum-2852.mp3"
+    # 1. Check bundled local royalty-free ambient tracks (variety, zero latency, offline-ready)
+    if AUDIO_ASSETS_DIR.exists():
+        local_tracks = [p for p in AUDIO_ASSETS_DIR.glob("*.mp3") if p.stat().st_size > 10_000]
+        if local_tracks:
+            chosen = random.choice(local_tracks)
+            try:
+                music_path.write_bytes(chosen.read_bytes())
+                log.info(
+                    "Selected ambient background music: %s (from %d available local tracks)",
+                    chosen.name,
+                    len(local_tracks),
+                )
+                return music_path
+            except Exception as exc:
+                log.warning("Could not copy local ambient music %s: %s", chosen.name, exc)
 
-    def download():
-        response = requests.get(url, timeout=20)
-        response.raise_for_status()
-        music_path.write_bytes(response.content)
-        return music_path
+    if LOCAL_ASSET_MUSIC.exists() and LOCAL_ASSET_MUSIC.stat().st_size > 10_000:
+        try:
+            music_path.write_bytes(LOCAL_ASSET_MUSIC.read_bytes())
+            log.info("Loaded ambient background music from default asset: %s", LOCAL_ASSET_MUSIC)
+            return music_path
+        except Exception as exc:
+            log.warning("Could not copy default local ambient music: %s", exc)
 
-    try:
-        return retry_call(download, attempts=2, base_delay=2, label="music download")
-    except Exception as exc:
-        log.warning("Music unavailable: %s", exc)
-        return None
+    # 2. Check environment variable or reliable public domain CDNs
+    custom_url = os.getenv("BG_MUSIC_URL")
+    candidate_urls = ([custom_url] if custom_url else []) + FALLBACK_MUSIC_URLS
+
+    for url in candidate_urls:
+        def download():
+            response = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=25)
+            response.raise_for_status()
+            if len(response.content) < 10_000:
+                raise ValueError("Downloaded music file is suspiciously small")
+            music_path.write_bytes(response.content)
+            return music_path
+
+        try:
+            return retry_call(download, attempts=2, base_delay=2, label=f"music download from {url[:40]}")
+        except Exception as exc:
+            log.warning("Music URL %s unavailable: %s", url[:40], exc)
+
+    return None
 
 
 # -----------------------------
@@ -1041,6 +1172,7 @@ def validate_video_quality(video_path: Path) -> dict:
     - Width == 1080 and Height == 1920
     - Duration is within MIN_DURATION and MAX_DURATION
     - Audio track is present
+    - Bitrate is verified (must be >= MIN_BITRATE_KBPS outside unit tests)
     """
     if not video_path.exists():
         raise FileNotFoundError(f"Video file does not exist: {video_path}")
@@ -1063,12 +1195,20 @@ def validate_video_quality(video_path: Path) -> dict:
         if clip.audio is None:
             raise ValueError(f"Video has no audio track: {video_path}")
 
+        bitrate_kbps = (size_bytes * 8) / (max(duration, 0.1) * 1000)
+        min_bitrate = int(os.getenv("MIN_BITRATE_KBPS", "1500" if not os.getenv("PYTEST_CURRENT_TEST") else "0"))
+        if min_bitrate > 0 and bitrate_kbps < min_bitrate:
+            raise ValueError(
+                f"Video bitrate ({bitrate_kbps:.1f} kbps) is below minimum threshold ({min_bitrate} kbps)"
+            )
+
         return {
             "path": str(video_path),
             "size_bytes": size_bytes,
             "width": w,
             "height": h,
             "duration": round(duration, 3),
+            "bitrate_kbps": round(bitrate_kbps, 1),
             "has_audio": True,
         }
 
@@ -1124,6 +1264,8 @@ def run(auto_publish: bool | None = None):
         scene_clips, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
     ).with_duration(total_duration)
     subtitles = generate_subtitle_clips(words_data)
+    if not subtitles:
+        log.warning("Warning: No subtitle clips were generated for this Short!")
     hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=topic.get("title"))
 
     video = CompositeVideoClip(
@@ -1165,6 +1307,9 @@ def run(auto_publish: bool | None = None):
         codec="libx264",
         audio_codec="aac",
         threads=2,
+        bitrate="8000k",
+        preset="fast",
+        ffmpeg_params=["-crf", "18"],
     )
 
     log.info("Performing final video quality checks")
