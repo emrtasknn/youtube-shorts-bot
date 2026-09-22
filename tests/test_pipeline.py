@@ -833,8 +833,46 @@ def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
         raise AssertionError("Expected ValueError for low bitrate")
 
 
+def test_fallback_stories_structure_and_duration_bounds():
+    assert len(pipeline.FALLBACK_STORIES) >= 3
+    for story in pipeline.FALLBACK_STORIES:
+        assert "title" in story
+        assert "hook_question" in story
+        assert len(story["scenes"]) == pipeline.SCENE_COUNT
+        total_words = sum(len(s["narration"].split()) for s in story["scenes"])
+        assert pipeline.MIN_TOTAL_WORDS <= total_words <= pipeline.MAX_TOTAL_WORDS
 
 
+def test_discover_topics_fallback_when_api_fails(monkeypatch):
+    class FailingModels:
+        def generate_content(self, *a, **kw):
+            raise RuntimeError("API quota exhausted 429")
+
+    class FailingClient:
+        models = FailingModels()
+
+    monkeypatch.setattr(pipeline, "client", FailingClient())
+    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
+    topic = pipeline.discover_and_score_topics(history_titles=["Kayıp Koloni Roanoke Gizemi"])
+    assert topic is not None
+    assert "title" in topic
+    assert "scenes" in topic
+    assert len(topic["scenes"]) == pipeline.SCENE_COUNT
 
 
+def test_generate_viral_script_fallback_when_api_fails(monkeypatch):
+    class FailingModels:
+        def generate_content(self, *a, **kw):
+            raise RuntimeError("API quota exhausted 429")
+
+    class FailingClient:
+        models = FailingModels()
+
+    monkeypatch.setattr(pipeline, "client", FailingClient())
+    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
+    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
+    scenes, topic = pipeline.generate_viral_script()
+    assert len(scenes) == pipeline.SCENE_COUNT
+    assert topic is not None
 
