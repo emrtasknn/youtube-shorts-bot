@@ -1,0 +1,256 @@
+import os
+import time
+import json
+import urllib.parse
+import asyncio
+import requests
+import telebot
+from telebot import types
+from google import genai
+import edge_tts
+from PIL import Image
+import numpy as np
+from moviepy import (
+    AudioFileClip, ImageClip, TextClip, CompositeVideoClip, 
+    CompositeAudioClip, concatenate_videoclips
+)
+
+# Ortam Değişkenleri
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+client = genai.Client(api_key=GEMINI_API_KEY)
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+# 1. LOOP ODAKLI & 7 SAHNELİ SENARYO ÜRETİMİ
+def generate_viral_script():
+    prompt = """
+    Sen YouTube Shorts için viral tarih içerikleri üreten uzman bir yönetmensin.
+    Tarihten akıl almaz, gizemli ve merak uyandırıcı bir olayı tam 7 sahnelik tempolu bir anlatımla yaz (toplam ~25 saniye).
+    
+    Çok Önemli Kurallar:
+    1. KUSURSUZ DÖNGÜ (SEAMLESS LOOP): 
+       - İlk sahne doğrudan şok edici bir soru veya cümleyle başlasın (örn: "Çin'in ilk imparatoru neden cıva nehirlerinin altında yatıyor?").
+       - 7. (son) sahnenin son cümlesi asla bitiş hissi vermesin; öyle bir bağlaçla veya merak cümlesiyle bitsin ki, videoyu başa sarınca ilk sahneye kusursuzca bağlansın (örn: "...ve bu dehşet verici sırrın cevabı aslında;").
+    2. GÖRSEL PROMPTLARI:
+       - Her sahne için İngilizce, 8k sinematik dikey portre promptu yaz.
+       - KESİNLİKLE kan, aşırı vahşet veya ceset içermesin (YouTube yaş kısıtlamasından kaçınmak için PG-13 belgesel tonu).
+       - Örnek: "epic dark cinematic lighting, ancient imperial tomb chamber with underground river, glowing mercury, octane render, photorealistic vertical 8k"
+    
+    Çıktıyı SADECE geçerli JSON olarak ver:
+    {
+      "scenes": [
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."},
+        {"narration": "...", "image_prompt": "..."}
+      ]
+    }
+    """
+    candidate_models = [
+        "gemini-3.7-flash", 
+        "gemini-flash-latest", 
+        "gemini-2.5-flash", 
+        "gemini-3.6-flash"
+    ]
+    for attempt in range(4):
+        for model in candidate_models:
+            try:
+                print(f"Senaryo isteniyor: {model} (Tur {attempt+1})...")
+                res = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config={"response_mime_type": "application/json"}
+                )
+                if res and res.text:
+                    return json.loads(res.text.strip())
+            except Exception as e:
+                print(f"{model} meşgul: {e}")
+        time.sleep((attempt + 1) * 4)
+    raise RuntimeError("Senaryo modellerden alınamadı.")
+
+# 2. SES VE KELİME ZAMAN DAMGASI (WORD BOUNDARY)
+async def create_voice_with_timestamps(text, audio_path="voice.mp3"):
+    communicate = edge_tts.Communicate(text, voice="tr-TR-AhmetNeural", rate="+15%")
+    words_data = []
+    
+    with open(audio_path, "wb") as f:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                f.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                words_data.append({
+                    "word": chunk["text"],
+                    "start": chunk["offset"] / 10_000_000,
+                    "end": (chunk["offset"] + chunk["duration"]) / 10_000_000
+                })
+    return words_data
+
+# 3. GÖRSEL ÜRETİMİ VE ALTTAN LOGO KIRPMA
+def download_ai_image(prompt_text, filename):
+    cleaned = urllib.parse.quote(prompt_text)
+    url = f"https://image.pollinations.ai/prompt/{cleaned}?width=1080&height=1920&model=turbo&nologo=true"
+    print(f"AI Görsel Üretiliyor: {prompt_text[:45]}...")
+    
+    for _ in range(2):
+        try:
+            res = requests.get(url, timeout=45)
+            if res.status_code == 200 and len(res.content) > 5000:
+                with open(filename, "wb") as f:
+                    f.write(res.content)
+                # Sağ alttaki filigranı 75px kırpıp tekrar 1080x1920 boyutla
+                try:
+                    with Image.open(filename) as img:
+                        w, h = img.size
+                        cropped = img.crop((0, 0, w, h - 75))
+                        final_img = cropped.resize((1080, 1920), Image.Resampling.LANCZOS)
+                        final_img.save(filename)
+                except Exception as ce:
+                    print(f"Kırpma uyarısı: {ce}")
+                return filename
+        except Exception as e:
+            print(f"Görsel deneme hatası: {e}")
+            time.sleep(2)
+            
+    # Hata durumunda yedek karanlık görsel
+    img = Image.new("RGB", (1080, 1920), color=(12, 12, 22))
+    img.save(filename)
+    return filename
+
+# 4. AMBİYANS ARKA PLAN MÜZİĞİ
+def get_ambient_music(music_path="bg_music.mp3"):
+    if not os.path.exists(music_path):
+        # Sinematik gizem / gerilim ambiyansı
+        url = "https://assets.mixkit.co/music/preview/mixkit-cinematic-mystery-suspense-hum-2852.mp3"
+        try:
+            r = requests.get(url, timeout=15)
+            if r.status_code == 200:
+                with open(music_path, "wb") as f:
+                    f.write(r.content)
+                return music_path
+        except Exception as e:
+            print(f"Müzik indirme hatası: {e}")
+    return music_path if os.path.exists(music_path) else None
+
+# 5. HIZLI ZOOM EFEKTİ
+def build_scene_clip(image_path, duration):
+    clip = ImageClip(image_path).with_duration(duration)
+    
+    def zoom_effect(get_frame, t):
+        scale = 1.0 + 0.07 * (t / max(duration, 0.1))
+        frame = get_frame(t)
+        img = Image.fromarray(frame)
+        new_w, new_h = int(1080 * scale), int(1920 * scale)
+        img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        left = (new_w - 1080) // 2
+        top = (new_h - 1920) // 2
+        return np.array(img_resized.crop((left, top, left + 1080, top + 1920)))
+
+    return clip.transform(zoom_effect)
+
+# 6. KELİME ÖBEKLİ DİNAMİK ALTYAZILAR
+def generate_subtitle_clips(words_data, total_duration):
+    subtitle_clips = []
+    if not words_data:
+        return subtitle_clips
+
+    # Kelimeleri 2-3'lü vuruş bloklarına ayır
+    chunk_size = 3
+    for i in range(0, len(words_data), chunk_size):
+        chunk = words_data[i:i+chunk_size]
+        start_time = chunk[0]["start"]
+        end_time = chunk[-1]["end"]
+        duration = max(end_time - start_time, 0.35)
+        text_content = " ".join([w["word"] for w in chunk]).upper()
+
+        txt = (
+            TextClip(
+                text=text_content,
+                font="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                font_size=56,
+                color="#FFE500",      # Dikkat çekici parlak sarı
+                stroke_color="black", # Kalın siyah dış çerçeve
+                stroke_width=5,
+                text_align="center"
+            )
+            .with_start(start_time)
+            .with_duration(duration)
+            .with_position(('center', 1320))
+        )
+        subtitle_clips.append(txt)
+    return subtitle_clips
+
+def run():
+    print("1. 7 Sahneli & Döngü Odaklı Senaryo Hazırlanıyor...")
+    data = generate_viral_script()
+    scenes = data.get("scenes", [])
+    full_text = " ".join([s["narration"] for s in scenes])
+    print(f"Sahne sayısı: {len(scenes)}")
+
+    print("2. Doğal Ses & Kelime Zamanlamaları Çıkarılıyor...")
+    words_data = asyncio.run(create_voice_with_timestamps(full_text, "voice.mp3"))
+    voice_audio = AudioFileClip("voice.mp3")
+    total_duration = voice_audio.duration
+    scene_duration = total_duration / len(scenes)
+
+    print("3. 7 Sahne İçin AI Görselleri Üretiliyor...")
+    scene_clips = []
+    for i, s in enumerate(scenes):
+        img_file = f"scene_{i}.jpg"
+        download_ai_image(s["image_prompt"], img_file)
+        clip = build_scene_clip(img_file, scene_duration)
+        scene_clips.append(clip)
+
+    base_video = concatenate_videoclips(scene_clips, method="compose")
+
+    print("4. Senkronize Dinamik Altyazılar Basılıyor...")
+    sub_clips = generate_subtitle_clips(words_data, total_duration)
+    video_with_subs = CompositeVideoClip([base_video] + sub_clips)
+
+    print("5. Seslendirme ve Ambiyans Müziği Miksleniyor...")
+    music_file = get_ambient_music("bg_music.mp3")
+    if music_file and os.path.exists(music_file):
+        try:
+            bg_music = AudioFileClip(music_file)
+            if bg_music.duration < total_duration:
+                bg_music = bg_music.loop(duration=total_duration)
+            else:
+                bg_music = bg_music.subclipped(0, total_duration)
+            # Arka plan müziğini %12 seviyesinde kısık tut
+            try:
+                bg_music = bg_music.with_volume_scaled(0.12)
+            except Exception:
+                bg_music = bg_music.volumex(0.12)
+            final_audio = CompositeAudioClip([voice_audio, bg_music])
+        except Exception as ae:
+            print(f"Müzik miksleme uyarısı: {ae}")
+            final_audio = voice_audio
+    else:
+        final_audio = voice_audio
+
+    final_video = video_with_subs.with_audio(final_audio)
+    output_path = "final_short.mp4"
+    final_video.write_videofile(output_path, fps=30, codec="libx264", audio_codec="aac")
+
+    print("6. Telegram'a Gönderiliyor...")
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("✅ Onayla & Yayınla", callback_data="publish"),
+        types.InlineKeyboardButton("❌ İptal", callback_data="cancel")
+    )
+    with open(output_path, "rb") as video:
+        bot.send_video(
+            TELEGRAM_CHAT_ID,
+            video,
+            caption=f"🔥 *Yeni Nesil Viral Shorts Hazır!*\n\n⏱ Süre: {total_duration:.1f}s | 7 Sahne | Dinamik Altyazı | Arka Plan Müziği\n\n{full_text[:160]}...",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+    print("İşlem Başarıyla Tamamlandı!")
+
+if __name__ == "__main__":
+    run()

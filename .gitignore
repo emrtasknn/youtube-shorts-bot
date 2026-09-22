@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project output
+output/
+*.mp4
+*.mp3
+*.jpg
+*.png
+
+# Environments & secrets
+.env
+.env.local
+
+# Persistent local state
+approvals.json
+topics_history.json
+client_secrets.json
+token.json
+
+

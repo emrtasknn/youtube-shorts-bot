@@ -1,0 +1,12 @@
+edge-tts
+moviepy>=2.0
+numpy
+Pillow
+pyTelegramBotAPI
+requests
+google-genai
+pytest
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+
