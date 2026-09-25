@@ -1614,8 +1614,21 @@ def run(auto_publish: bool | None = None):
             # MoviePy 2.x: AudioClip.transform replaces the removed .fl API.
             def ducked_frame(get_frame, t):
                 frame = get_frame(t)
-                volume = float(ducking_fn(t))
-                return frame * volume
+                volume = np.asarray(ducking_fn(t))
+
+                # MoviePy can pass a scalar timestamp or a NumPy array of
+                # timestamps when rendering audio chunks. Preserve the shape
+                # so per-sample ducking broadcasts correctly across channels.
+                if volume.ndim == 0:
+                    return frame * float(volume)
+
+                if frame.ndim == volume.ndim:
+                    return frame * volume
+
+                # Typical stereo audio: frame=(samples, channels),
+                # volume=(samples,). Expand volume across channels.
+                reshape = (volume.shape[0],) + (1,) * (frame.ndim - 1)
+                return frame * volume.reshape(reshape)
 
             bg_music = bg_music.transform(ducked_frame, keep_duration=True)
             bg_music = bg_music.with_effects([
