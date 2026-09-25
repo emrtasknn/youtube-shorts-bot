@@ -99,12 +99,31 @@ def choose_voice_profile(candidate: dict, research_dossier: dict) -> tuple[str, 
             scores["energetic_female"] += hits
     event_key = str(candidate.get("event_id") or candidate.get("canonical_title", ""))
     tie = sum(ord(ch) for ch in event_key) % len(VOICE_PROFILES)
+
+    # Avoid narrator fatigue: prefer a profile not used in the last two
+    # completed videos when content memory contains that metadata.
+    recent_profiles = []
+    try:
+        recent_entries = content_memory.load_content_memory()
+        recent_profiles = [
+            str(entry.get("voice_profile", ""))
+            for entry in recent_entries[-2:]
+            if entry.get("voice_profile")
+        ]
+    except Exception:
+        recent_profiles = []
+
     if max(scores.values()) == 0:
-        selected = list(VOICE_PROFILES)[tie]
+        ranked = list(VOICE_PROFILES)
     else:
         best_score = max(scores.values())
-        candidates = [name for name, score in scores.items() if score == best_score]
-        selected = candidates[tie % len(candidates)]
+        ranked = sorted(
+            VOICE_PROFILES,
+            key=lambda name: (-scores[name], (list(VOICE_PROFILES).index(name) - tie) % len(VOICE_PROFILES)),
+        )
+
+    available = [name for name in ranked if name not in recent_profiles]
+    selected = (available or ranked)[0]
     return selected, VOICE_PROFILES[selected]
 
 
