@@ -535,10 +535,29 @@ def compute_ducking_volume(
     blocks.append((current_start, current_end))
 
     def volume_at_time(t):
-        # Check if t falls within any narration block
+        """Return ducking volume for scalar or NumPy-array time inputs.
+
+        MoviePy may evaluate audio frame functions with a scalar timestamp
+        or with a NumPy array of timestamps. Array inputs must be handled
+        element-wise because chained comparisons on an array are ambiguous.
+        """
+        import numpy as np
+
+        t_array = np.asarray(t)
+
+        # Fast path for the normal scalar timestamp case.
+        if t_array.ndim == 0:
+            value = float(t_array)
+            for start, end in blocks:
+                if start - 0.1 <= value <= end + 0.1:
+                    return ducked_volume
+            return pause_volume
+
+        # Vectorized path for MoviePy/NumPy audio batches.
+        volume = np.full(t_array.shape, pause_volume, dtype=float)
         for start, end in blocks:
-            if start - 0.1 <= t <= end + 0.1:
-                return ducked_volume
-        return pause_volume
+            mask = (t_array >= start - 0.1) & (t_array <= end + 0.1)
+            volume[mask] = ducked_volume
+        return volume
 
     return volume_at_time
