@@ -1,5 +1,5 @@
 edge-tts
-moviepy>=2.0
+moviepy>=2.1.2,<3
 numpy
 Pillow
 pyTelegramBotAPI
