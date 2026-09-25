@@ -32,5 +32,40 @@
     "first_video_id": "run_20260925_181552",
     "created_at": "2026-09-25T18:15:52",
     "status": "used"
+  },
+  {
+    "event_id": "evt_a36d6494d78e",
+    "canonical_title": "The Great Emu War",
+    "aliases": [
+      "Avustralya Emu Savaşı",
+      "Büyük Emu Savaşı"
+    ],
+    "date": "1932",
+    "date_normalized": "1932",
+    "location": "Western Australia",
+    "entities": [
+      "Major G.P.W. Meredith",
+      "Royal Australian Artillery"
+    ],
+    "event_summary": "The Australian government deployed soldiers armed with Lewis guns to cull a massive emu population that was destroying crops. Despite the military firepower, the birds' agility led to a humiliating defeat for the soldiers.",
+    "core_facts": [
+      "Operasyon Kasım 1932'de Batı Avustralya'nın Campion bölgesinde gerçekleşti.",
+      "Binbaşı G.P.W. Meredith liderliğindeki Avustralya Kraliyet Topçu Birliği askerleri Lewis makineli tüfekleri ile görevlendirildi.",
+      "Yaklaşık 20.000 emu, bölgedeki çiftçilerin buğday mahsullerine ciddi zarar verdiği için hedef alındı.",
+      "Resmi kayıtlara göre 9.860 mermi harcandı ancak sadece çok küçük bir oranla kuşlar etkisiz hale getirildi.",
+      "Operasyon, başarısızlık ve kamuoyu baskısı nedeniyle Kasım 1932'nin sonunda durduruldu."
+    ],
+    "claims": [
+      "Öldürülen kuşların kesin sayısı; resmi kaynaklar yüzlerce derken, yerel gözlemciler çok daha yüksek rakamlar telaffuz etti.",
+      "Operasyonun askeri bir başarısızlık mı yoksa sadece lojistik bir planlama hatası mı olduğu konusu tartışmalıdır."
+    ],
+    "sources": [
+      "National Archives of Australia: Operation against emus series",
+      "Murray Johnson, 'Feathered Foes: Soldier Settlers and the Emu War of 1932'",
+      "The West Australian, 1932 yılı gazete arşivleri"
+    ],
+    "first_video_id": "run_20260925_191211",
+    "created_at": "2026-09-25T19:12:11",
+    "status": "used"
   }
 ]
