@@ -1387,6 +1387,44 @@ def validate_video_quality(video_path: Path) -> dict:
         }
 
 
+def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_relevance: float = 0.55) -> dict:
+    """Final deterministic gate: every real visual must meet the relevance threshold."""
+    if len(visual_sources) != len(scenes):
+        raise ValueError(f"Visual QA failed: {len(visual_sources)} sources for {len(scenes)} scenes")
+    results = []
+    for idx, (source, scene) in enumerate(zip(visual_sources, scenes), 1):
+        source_type = source.get("source_type", "")
+        if source_type in ("wikimedia", "openverse"):
+            score = float(source.get("relevance_score", 0))
+            if score < min_relevance:
+                raise ValueError(
+                    f"Visual QA failed: scene {idx} real visual relevance {score:.2f} "
+                    f"is below threshold {min_relevance:.2f}"
+                )
+            results.append({
+                "scene": idx, "source_type": source_type,
+                "relevance_score": score, "title": source.get("title", ""),
+                "query": source.get("search_query", ""), "decision": "PASS_REAL",
+            })
+        elif source_type == "ai_reconstruction":
+            intent = scene.get("visual_intent", {})
+            if not intent.get("primary_subject") or not intent.get("must_show"):
+                raise ValueError(f"Visual QA failed: scene {idx} AI reconstruction has no concrete visual intent")
+            results.append({
+                "scene": idx, "source_type": source_type, "decision": "PASS_AI_INTENT",
+                "primary_subject": intent.get("primary_subject", ""),
+            })
+        else:
+            raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
+    return {
+        "passed": True,
+        "scene_count": len(results),
+        "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
+        "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
+        "scenes": results,
+    }
+
+
 # -----------------------------
 # Main pipeline
 # -----------------------------
@@ -1474,6 +1512,13 @@ def run(auto_publish: bool | None = None):
         if resolved_url and resolved_url not in used_visual_urls:
             used_visual_urls.append(resolved_url)
     
+    visual_qa = validate_visual_sources(visual_sources, scenes)
+    log.info(
+        "Visual QA passed: %d real visuals, %d AI reconstructions",
+        visual_qa["real_visuals"],
+        visual_qa["ai_reconstructions"],
+    )
+
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
         
@@ -1638,6 +1683,7 @@ def run(auto_publish: bool | None = None):
         "audio_mix_mode": audio_mix_mode,
         "visual_sources": visual_sources,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
+        "visual_qa": visual_qa,
         "visual_reuse_warnings": visual_warnings,
     }
     (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
