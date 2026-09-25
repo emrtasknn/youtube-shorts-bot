@@ -1275,3 +1275,21 @@ def run_discovery_pipeline(
 
     # Research the selected event
     dossier = research_historical_event(selected)
+
+    if not dossier or not isinstance(dossier, dict):
+        log.error("RESEARCH FAILED: No valid dossier returned. Aborting.")
+        return None
+
+    # Reserve immediately after selection + research so a later failed render
+    # cannot allow the same event to be selected again in another run.
+    reservation = reserve_event(selected, dossier, em_path)
+    selected = dict(selected)
+    selected["_reserved_event_id"] = reservation.get("event_id", "")
+    selected["_reserved_status"] = reservation.get("status", "reserved")
+
+    log.info(
+        "DISCOVERY COMPLETE: '%s' reserved as %s",
+        selected.get("canonical_title", ""),
+        selected.get("_reserved_event_id", ""),
+    )
+    return selected, dossier
