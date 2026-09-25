@@ -27,6 +27,7 @@ from telebot import types
 
 import youtube_uploader
 import content_memory
+import event_memory
 
 
 
@@ -410,54 +411,50 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     }
 
 
-def generate_viral_script(topic: dict | None = None, content_memory: list[dict] | None = None) -> tuple[list[dict], dict]:
-    """Generate a 7-scene structured script based on topic research with storytelling arc and seamless loop.
+def generate_viral_script(candidate: dict, research_dossier: dict) -> list[dict]:
+    """Generate a 7-scene structured script based on the verified research dossier.
 
-    When content_memory is provided, the prompt is enhanced with previously
-    covered angles to drive genuinely novel content generation.
+    This ensures the script is based on facts and uncertainty is preserved where appropriate.
     """
-    # Build content-aware context from memory
-    memory = content_memory if content_memory is not None else content_memory_module.load_content_memory()
-    content_aware_negative = content_memory_module.build_content_aware_negative_prompt(memory)
-
-    if topic is None:
-        history = load_topic_history()
-        history_titles = [item.get("title", "") for item in history if isinstance(item, dict)]
-        topic = discover_and_score_topics(history_titles, content_aware_prompt=content_aware_negative)
-
-    topic_title = topic.get("title", "Tarihsel Gizem")
-    hook_question = topic.get("hook_question", "")
-
-    # Inject content-aware instructions into the script generation prompt
-    content_history_section = ""
-    if content_aware_negative:
-        content_history_section = f"""\n\n{content_aware_negative}\n
-Yukarıdaki içeriklerle AYNI bilgisel açıyı veya aynı ana iddiayı TEKRARLAMA.
-Aynı geniş konuyu kullanabilirsin ama FARKLI bir bilgisel yük, farklı bir bakış açısı ve farklı temel gerçeklerle yeni bir anlatı oluştur.
-"""
+    topic_title = candidate.get("canonical_title", "Tarihsel Gizem")
+    hook_question = research_dossier.get("story_hook", candidate.get("why_interesting", ""))
+    
+    verified_facts_str = "\n".join(f"- {f}" for f in research_dossier.get("verified_facts", []))
+    disputed_claims_str = "\n".join(f"- {f}" for f in research_dossier.get("disputed_claims", []))
+    myths_str = "\n".join(f"- {f}" for f in research_dossier.get("possible_myths", []))
 
     prompt = f"""
 Sen YouTube Shorts için viral tarih belgeselleri üreten usta bir yönetmensin.
-Konu: {topic_title}
-Önerilen Açılış Kancası: {hook_question}
-{content_history_section}
+
+Olay: {topic_title}
+Önerilen Kanca: {hook_question}
+
+DOĞRULANMIŞ GERÇEKLER:
+{verified_facts_str}
+
+TARTIŞMALI İDDİALAR:
+{disputed_claims_str}
+
+EFSANELER / SPEKÜLASYONLAR:
+{myths_str}
 
 Bu olayı tam {SCENE_COUNT} sahnelik, yüksek tempolu bir Shorts senaryosu olarak yaz.
 Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye (toplam 40-65 kelime).
 
 Sahne Hikaye Şablonu:
 - 1. Sahne: Güçlü Kanca (Hook) - İlk 1-2 saniyede izleyiciyi ekrana bağlayacak şok edici soru veya gerçek.
-- 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları.
-- 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut.
+- 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları (DOĞRULANMIŞ GERÇEKLERİ KULLAN).
+- 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut veya spekülasyonlar.
 - 6. Sahne: Yankı - Bu olayın tarihte bıraktığı silinmez iz.
-- 7. Sahne: Kusursuz Döngü Köprüsü (Seamless Loop) - Asla veda veya bitiş bildirmemeli! Cümle öyle bir bağlaçla bitmeli ki, video başa sarınca 1. sahneye pürüzsüzce bağlansın (örn: "...ve bu dehşet verici sırrın cevabı aslında;", "...çünkü tarihin en büyük gizemi tam da burada başlıyor:").
+- 7. Sahne: Kusursuz Döngü Köprüsü (Seamless Loop) - Asla veda veya bitiş bildirmemeli! Cümle öyle bir bağlaçla bitmeli ki, video başa sarınca 1. sahneye pürüzsüzce bağlansın (örn: "...ve bu sırrın cevabı aslında;", "...gizemin başladığı yer tam da burası:").
 
 Kurallar:
-1. Görsel promptları İngilizce, sinematik, dikey (vertical 9:16), fotogerçekçi, 8k render ve PG-13 belgesel tonunda olsun.
-2. Kesinlikle kan, aşırı şiddet veya ceset istemiyorum.
-3. Tarihsel iddiaları uydurma.
-4. Çıktı SADECE geçerli JSON olsun.
-5. Her sahnenin image_prompt'u birbirinden FARKLI görsel kompozisyon, açı ve sahne içermeli.
+1. Sadece araştırma dosyasındaki bilgileri kullan. Kendi genel bilgilerinle yeni iddialar uydurma.
+2. Kesin olmayan şeyleri kesinmiş gibi anlatma (belirsizliği koru).
+3. Görsel promptları İngilizce, sinematik, dikey (vertical 9:16), fotogerçekçi, 8k render ve PG-13 belgesel tonunda olsun.
+4. Kesinlikle kan, aşırı şiddet veya ceset istemiyorum.
+5. Çıktı SADECE geçerli JSON olsun.
+6. Her sahnenin image_prompt'u birbirinden FARKLI görsel kompozisyon, açı ve sahne içermeli.
 
 Şema:
 {{
@@ -472,7 +469,7 @@ Kurallar:
     for attempt in range(4):
         for model in candidate_models:
             try:
-                log.info("Requesting structured script: %s (attempt %s)", model, attempt + 1)
+                log.info("Requesting structured script from dossier: %s (attempt %s)", model, attempt + 1)
                 response = client.models.generate_content(
                     model=model,
                     contents=prompt,
@@ -481,9 +478,10 @@ Kurallar:
                 if response and response.text:
                     data = json.loads(response.text.strip())
                     scenes = validate_script(data)
-                    qa_result = evaluate_script_quality(scenes, topic)
+                    topic_compat = {"title": topic_title} # For QA
+                    qa_result = evaluate_script_quality(scenes, topic_compat)
                     log.info("Script QA evaluated: score=%s, issues=%s", qa_result["score"], qa_result["issues"])
-                    return scenes, topic
+                    return scenes
             except Exception as exc:
                 log.warning("Script generation failed with %s: %s", model, exc)
                 err_str = str(exc)
@@ -493,16 +491,7 @@ Kurallar:
                     time.sleep(1)
         time.sleep((attempt + 1) * 3)
 
-    log.warning("All Gemini model attempts failed; using curated historical fallback story.")
-    if topic and isinstance(topic.get("scenes"), list) and len(topic["scenes"]) == SCENE_COUNT:
-        return topic["scenes"], topic
-
-    matching = [fb for fb in FALLBACK_STORIES if fb.get("title") == (topic.get("title") if topic else "")]
-    if matching:
-        return matching[0]["scenes"], topic
-
-    chosen = random.choice(FALLBACK_STORIES)
-    return chosen["scenes"], chosen
+    raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
 
 # Alias for the content_memory module to avoid name collision with local variables
@@ -1387,86 +1376,36 @@ def run(auto_publish: bool | None = None):
     run_dir = OUTPUT_DIR / time.strftime("%Y%m%d_%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Phase 2+3: Load content memory and generate content-aware script ──
-    memory = content_memory_module.load_content_memory()
-    log.info("Content memory loaded: %d previous entries", len(memory))
+    # Run migration if needed
+    if not event_memory.EVENT_MEMORY_FILE.exists():
+        log.info("First run with V2 engine. Attempting migration...")
+        event_memory.migrate_existing_memory()
 
-    log.info("1/8 Discovering topic and generating structured script")
-    scenes, topic = generate_viral_script(content_memory=memory)
+    log.info("1/8 Historical Event Discovery & Deduplication")
+    discovery_result = event_memory.run_discovery_pipeline()
+    if not discovery_result:
+        log.error("Pipeline aborting due to discovery failure.")
+        return None
+
+    candidate, research_dossier = discovery_result
+    # Topic dict compatibility for older functions (e.g., telegram / youtube uploader)
+    topic_compat = {
+        "title": candidate.get("canonical_title", "Tarihsel Gizem"),
+        "hook_question": research_dossier.get("story_hook", ""),
+        "viral_score": 9,
+        "visual_appeal": 9,
+    }
+
+    log.info("2/8 Generating script from verified research dossier")
+    scenes = generate_viral_script(candidate, research_dossier)
     full_text = " ".join(scene["narration"] for scene in scenes)
 
-    # ── Phase 2: Analyze candidate content ──
-    log.info("2/8 Analyzing candidate content for novelty check")
+    log.info("3/8 Analyzing script content for metadata")
     candidate_analysis = content_memory_module.analyze_script_content(
         scenes=scenes,
-        topic_title=topic.get("title", ""),
+        topic_title=topic_compat["title"],
     )
 
-    # ── Phase 3: Semantic novelty check — BEFORE expensive generation ──
-    log.info("3/8 Checking content novelty (ACCEPT/REVISE/REJECT)")
-    for novelty_attempt in range(1, MAX_NOVELTY_RETRIES + 1):
-        novelty_result = content_memory_module.check_content_novelty(
-            candidate_analysis=candidate_analysis,
-            memory=memory,
-        )
-        decision = novelty_result.get("decision", "ACCEPT")
-
-        # ── Structured novelty log (Phase 7: Logging) ──
-        log.info(
-            "Novelty decision [attempt %d/%d]:\n"
-            "  Candidate: %s\n"
-            "  Candidate angle: %s\n"
-            "  Nearest previous: %s\n"
-            "  Similarity: %.2f\n"
-            "  Fact overlap: %d%%\n"
-            "  Decision: %s\n"
-            "  Reason: %s",
-            novelty_attempt, MAX_NOVELTY_RETRIES,
-            candidate_analysis.get("topic", "N/A"),
-            candidate_analysis.get("angle", "N/A"),
-            novelty_result.get("nearest_content", "N/A"),
-            novelty_result.get("similarity_score", 0),
-            novelty_result.get("fact_overlap_pct", 0),
-            decision,
-            novelty_result.get("reason", "N/A"),
-        )
-
-        if decision == "ACCEPT":
-            break
-        elif decision == "REVISE" and novelty_attempt < MAX_NOVELTY_RETRIES:
-            revision_hint = novelty_result.get("revision_hint", "")
-            log.info(
-                "Content REVISE requested (attempt %d/%d). Hint: %s",
-                novelty_attempt, MAX_NOVELTY_RETRIES, revision_hint,
-            )
-            # Regenerate with the revision hint injected
-            scenes, topic = generate_viral_script(topic=topic, content_memory=memory)
-            full_text = " ".join(scene["narration"] for scene in scenes)
-            candidate_analysis = content_memory_module.analyze_script_content(
-                scenes=scenes, topic_title=topic.get("title", ""),
-            )
-        elif decision == "REJECT":
-            if novelty_attempt < MAX_NOVELTY_RETRIES:
-                log.warning(
-                    "Content REJECTED (attempt %d/%d). Generating completely new topic.",
-                    novelty_attempt, MAX_NOVELTY_RETRIES,
-                )
-                # Force new topic discovery
-                scenes, topic = generate_viral_script(content_memory=memory)
-                full_text = " ".join(scene["narration"] for scene in scenes)
-                candidate_analysis = content_memory_module.analyze_script_content(
-                    scenes=scenes, topic_title=topic.get("title", ""),
-                )
-            else:
-                log.warning(
-                    "Content still rejected after %d attempts. Proceeding anyway.",
-                    MAX_NOVELTY_RETRIES,
-                )
-                break
-        else:
-            break
-
-    # ── Phase 6: Visual reuse guard ──
     visual_warnings = content_memory_module.check_visual_reuse(scenes)
     if visual_warnings:
         log.info("Visual reuse detected in %d scene pairs; diversifying prompts", len(visual_warnings))
@@ -1475,7 +1414,6 @@ def run(auto_publish: bool | None = None):
     log.info("4/8 Generating voice and word timestamps")
     voice_path = run_dir / "voice.mp3"
 
-    # Regenerate the script if the actual TTS duration is far from the target.
     for duration_attempt in range(1, 4):
         words_data = asyncio.run(create_voice_with_timestamps(full_text, voice_path))
         voice_audio = AudioFileClip(str(voice_path))
@@ -1490,24 +1428,52 @@ def run(auto_publish: bool | None = None):
         if duration_attempt == 3:
             if 10.0 <= total_duration <= 58.0:
                 log.warning(
-                    "Duration %.2fs is outside target range [%s-%ss], but within YouTube Shorts platform limits (10-58s). Proceeding.",
+                    "Duration %.2fs is outside target range [%s-%ss], but within YouTube Shorts limits. Proceeding.",
                     total_duration, MIN_DURATION, MAX_DURATION,
                 )
                 break
-            raise RuntimeError(
-                f"Could not produce a Short in the target duration range after 3 attempts: {total_duration:.2f}s"
-            )
-        scenes, topic = generate_viral_script(topic=topic, content_memory=memory)
+            raise RuntimeError(f"Could not produce a Short in target duration range: {total_duration:.2f}s")
+        scenes = generate_viral_script(candidate, research_dossier)
         full_text = " ".join(scene["narration"] for scene in scenes)
 
     scene_timings = calculate_scene_timings(scenes, words_data, total_duration)
     log.info("Scene timings: %s", [(round(a, 2), round(b, 2)) for a, b in scene_timings])
 
-    log.info("5/8 Generating %s AI images", SCENE_COUNT)
+    log.info("5/8 Resolving visual sources and generating images")
     scene_clips = []
-    for i, (scene, (start, end)) in enumerate(zip(scenes, scene_timings), 1):
+    
+    # Pre-resolve visuals
+    visual_sources = []
+    for i, scene in enumerate(scenes, 1):
+        # Merge prompt words to use as search terms
+        terms = [w for w in scene["image_prompt"].split() if len(w) > 4][:2]
+        v_source = event_memory.resolve_visual_source(
+            scene_description=scene["narration"],
+            visual_search_terms=terms,
+            event_title=topic_compat["title"],
+        )
+        visual_sources.append(v_source)
+    
+    for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
-        download_ai_image(scene["image_prompt"], image_path)
+        
+        # Download historical/web images or fallback to AI
+        image_downloaded = False
+        if v_source.get("source_type") == "wikimedia":
+            try:
+                img_url = v_source.get("image_url")
+                resp = requests.get(img_url, timeout=15)
+                resp.raise_for_status()
+                image_path.write_bytes(resp.content)
+                crop_watermark_zone(image_path) # Just scales to 9:16
+                image_downloaded = True
+                log.info("Scene %d downloaded from Wikimedia", i)
+            except Exception as e:
+                log.warning("Wikimedia download failed for scene %d: %s. Falling back to AI.", i, e)
+        
+        if not image_downloaded:
+            download_ai_image(scene["image_prompt"], image_path)
+            
         motion_type = MOTION_TYPES[(i - 1) % len(MOTION_TYPES)]
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
 
@@ -1518,14 +1484,14 @@ def run(auto_publish: bool | None = None):
     subtitles = generate_subtitle_clips(words_data)
     if not subtitles:
         log.warning("Warning: No subtitle clips were generated for this Short!")
-    hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=topic.get("title"))
+    hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=topic_compat["title"])
 
     video = CompositeVideoClip(
         [base_video, hook_badge] + subtitles, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
     ).with_duration(total_duration)
 
-    # ── Phase 5+6: Content-aware audio selection with ducking ──
-    log.info("7/8 Mixing audio (content-aware selection + ducking)")
+    log.info("7/8 Mixing audio (content-aware selection + real ducking)")
+    memory = content_memory_module.load_content_memory()
     music_path = get_ambient_music(
         run_dir / "bg_music.mp3",
         content_analysis=candidate_analysis,
@@ -1544,8 +1510,7 @@ def run(auto_publish: bool | None = None):
             fade_in_len = min(1.0, total_duration / 4)
             fade_out_len = min(1.5, total_duration / 4)
 
-            # Phase 6: Narration-aware ducking
-            # Compute dynamic volume function based on narration timing
+            # Use moviepy's make_frame to apply true ducking function
             ducking_fn = content_memory_module.compute_ducking_volume(
                 narration_words=words_data,
                 total_duration=total_duration,
@@ -1553,21 +1518,27 @@ def run(auto_publish: bool | None = None):
                 ducked_volume=0.12,
                 pause_volume=0.24,
             )
-
-            # Apply ducking: use volume_scaled with the average of ducking
-            # (moviepy doesn't support per-frame volume easily, so we use
-            # a reasonable compromise with higher base volume + fades)
-            bg_music = (
-                bg_music
-                .with_volume_scaled(0.18)  # Phase 5: Raised from 0.10 to 0.18
-                .with_effects([
-                    AudioFadeIn(fade_in_len),
-                    AudioFadeOut(fade_out_len),
-                ])
-            )
+            
+            # True ducking applied to audio clip
+            def fl_volume(gf, t):
+                frame = gf(t)
+                vol = ducking_fn(t)
+                # handle stereo / mono frame shapes
+                if isinstance(vol, (float, int)):
+                    return vol * frame
+                else:
+                    return vol * frame
+                    
+            # Moviepy 1.0.3 volume transformation
+            bg_music = bg_music.fl(fl_volume, keep_duration=True)
+            
+            bg_music = bg_music.with_effects([
+                AudioFadeIn(fade_in_len),
+                AudioFadeOut(fade_out_len),
+            ])
             final_audio = CompositeAudioClip([voice_audio, bg_music])
             log.info(
-                "Audio mix: narration + %s (volume=0.18, fade_in=%.1fs, fade_out=%.1fs)",
+                "Audio mix: narration + %s with dynamic ducking (fade_in=%.1fs, fade_out=%.1fs)",
                 selected_audio_track, fade_in_len, fade_out_len,
             )
         except Exception as exc:
@@ -1594,55 +1565,42 @@ def run(auto_publish: bool | None = None):
     video_qa = validate_video_quality(output_path)
     log.info("Video QA passed: %s", video_qa)
 
-    # Save newly completed topic to persistent history to avoid repeating it
-    save_topic_to_history({
-        "title": topic.get("title"),
-        "hook_question": topic.get("hook_question"),
-        "viral_score": topic.get("viral_score"),
-        "visual_appeal": topic.get("visual_appeal"),
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "duration_seconds": round(total_duration, 2),
-    })
+    # ── Phase 4: Save Event Identity ──
+    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
+    event_record = event_memory.mark_event_as_used(candidate, research_dossier, video_id=run_id)
 
-    # ── Phase 2: Save to Content Memory ──
+    # ── Legacy Content Memory ──
     content_entry = content_memory_module.build_content_entry(
-        topic=topic,
+        topic=topic_compat,
         scenes=scenes,
         analysis=candidate_analysis,
         full_text=full_text,
     )
     content_entry["audio_track"] = selected_audio_track
-    content_entry["novelty_result"] = novelty_result
+    content_entry["event_id"] = event_record["event_id"]
     content_memory_module.save_content_entry(content_entry)
 
-    # Save machine-readable metadata for debugging and future analytics.
     metadata = {
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "topic": topic,
+        "event_record": event_record,
         "duration_seconds": round(total_duration, 3),
         "scene_count": len(scenes),
-        "scene_timings": [
-            {"start": round(a, 3), "end": round(b, 3)} for a, b in scene_timings
-        ],
+        "scene_timings": [{"start": round(a, 3), "end": round(b, 3)} for a, b in scene_timings],
         "scenes": scenes,
         "qa": video_qa,
         "content_analysis": candidate_analysis,
-        "novelty_result": novelty_result,
         "audio_track": selected_audio_track,
+        "visual_sources": visual_sources,
         "visual_reuse_warnings": visual_warnings,
     }
-    (run_dir / "metadata.json").write_text(
-        json.dumps(metadata, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
     log.info("8/8 Sending result to Telegram")
-    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     send_to_telegram(
         output_path,
         total_duration,
         full_text,
-        topic=topic,
+        topic=topic_compat,
         run_id=run_id,
         scenes=scenes,
     )
