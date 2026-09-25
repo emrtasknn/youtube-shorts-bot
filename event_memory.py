@@ -1180,6 +1180,57 @@ def resolve_visual_source(
         "relevance_threshold": 0.65,
     }
 
+
+def mark_event_as_used(
+    candidate: dict,
+    research_dossier: dict,
+    video_id: str = "",
+    event_memory_path: Optional[Path] = None,
+) -> dict:
+    """Finalize a reserved event after successful video generation."""
+    em_path = event_memory_path or EVENT_MEMORY_FILE
+    events = load_event_memory(em_path)
+    reserved_id = candidate.get("_reserved_event_id", "")
+
+    if reserved_id:
+        for event in events:
+            if event.get("event_id") == reserved_id:
+                event["status"] = "used"
+                event["first_video_id"] = video_id or event.get("first_video_id", "")
+                event["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                save_event_to_memory(event, em_path)
+                log.info(
+                    "EVENT FINALIZED: '%s' (%s) -> video %s",
+                    event.get("canonical_title", ""),
+                    reserved_id,
+                    video_id,
+                )
+                return event
+
+    record = build_event_record(
+        canonical_title=candidate.get("canonical_title", ""),
+        aliases=candidate.get("aliases", []),
+        date=candidate.get("date", ""),
+        date_normalized=candidate.get("date_normalized", ""),
+        location=candidate.get("location", ""),
+        entities=candidate.get("entities", []),
+        event_summary=candidate.get("event_summary", ""),
+        core_facts=research_dossier.get("verified_facts", candidate.get("known_facts", [])),
+        claims=research_dossier.get("disputed_claims", []),
+        sources=research_dossier.get("sources", []),
+        first_video_id=video_id,
+        status="used",
+        event_id=reserved_id,
+    )
+    record["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    save_event_to_memory(record, em_path)
+    log.info(
+        "EVENT FINALIZED via fallback: '%s' (%s)",
+        record.get("canonical_title", ""),
+        record.get("event_id", ""),
+    )
+    return record
+
 # ---------------------------------------------------------------------------
 # Phase 7 — Full Discovery Pipeline Entry Point
 # ---------------------------------------------------------------------------
