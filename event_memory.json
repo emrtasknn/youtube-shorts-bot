@@ -136,5 +136,42 @@
     "created_at": "2026-09-25T20:45:00",
     "status": "used",
     "completed_at": "2026-09-25T20:52:39"
+  },
+  {
+    "event_id": "evt_a809b5e17e8e",
+    "canonical_title": "The Eruption of Mount Tambora Year Without a Summer",
+    "aliases": [
+      "1816 Yazsız Yıl",
+      "Tambora Patlaması"
+    ],
+    "date": "1816",
+    "date_normalized": "1816",
+    "location": "Global",
+    "entities": [
+      "Mount Tambora",
+      "Mary Shelley",
+      "Lord Byron"
+    ],
+    "event_summary": "1815'te gerçekleşen devasa yanardağ patlaması atmosfere kül yayarak 1816'da küresel sıcaklık düşüşüne ve kıtlığa yol açtı. İnsanlık tarihinde mevsimlerin neredeyse tamamen kaybolduğu nadir bir dönemdir.",
+    "core_facts": [
+      "1815 yılında Endonezya'daki Tambora Dağı, VEI-7 ölçeğinde modern tarihin en büyük yanardağ patlamasını gerçekleştirdi.",
+      "Patlama sonucu stratosfere yayılan sülfürik asit aerosolleri, 1816 yılında küresel sıcaklıkların 0.4-0.7 derece düşmesine neden oldu.",
+      "1816 Haziran ayında New England ve Kanada bölgelerinde don olayları ve kar yağışı kaydedilmiştir.",
+      "Gıda kıtlığı, tifo salgınları ve mahsul başarısızlığı Avrupa ve Kuzey Amerika'da toplumsal huzursuzluğa yol açtı.",
+      "Mary Shelley, İsviçre'nin Cenevre Gölü kıyısında, kötü hava koşulları nedeniyle evden çıkamadığı dönemde Frankenstein romanını kaleme aldı."
+    ],
+    "claims": [
+      "Patlamanın doğrudan tetiklediği küresel kıtlığın, 19. yüzyıldaki kolera salgınının başlangıcına etkisi tam olarak ölçülememektedir.",
+      "Avrupa'daki ekonomik krizin ve isyanların ne kadarının doğrudan iklim değişikliğine, ne kadarının Napolyon Savaşları sonrası toparlanma sürecine bağlı olduğu tartışmalıdır."
+    ],
+    "sources": [
+      "Gillen D'Arcy Wood, 'Tambora: The Eruption That Changed the World'",
+      "William K. Klingaman, 'The Year Without Summer: 1816 and the Volcano That Darkened the World and Changed History'",
+      "Clive Oppenheimer, 'Eruptions that Shook the World'"
+    ],
+    "first_video_id": "run_20260925_212842",
+    "created_at": "2026-09-25T21:18:56",
+    "status": "used",
+    "completed_at": "2026-09-25T21:28:42"
   }
 ]
