@@ -963,7 +963,10 @@ def _visual_intent_match_score(
     must_coverage = must_hits / max(len(must_tokens), 1)
 
     if visual_type == "map":
-        intent_pass = primary_hits >= 1 and (must_hits >= 1 or query_score >= 0.55)
+        # Map titles are often sparse ("St Giles Parish Map"). A direct map
+        # anchor is sufficient; the query is still event-specific and the
+        # resolver applies the relevance threshold separately.
+        intent_pass = primary_hits >= 1
     elif visual_type in ("document", "artifact"):
         intent_pass = primary_hits >= 1 and (must_hits >= 1 or query_score >= 0.65)
     else:
