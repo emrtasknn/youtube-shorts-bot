@@ -706,7 +706,7 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline,
         "generate_viral_script",
-        lambda topic=None: (
+        lambda topic=None, content_memory=None: (
             [{"narration": f"Sahne {i} anlatımı burada yer alıyor.", "image_prompt": f"prompt {i}"} for i in range(7)],
             {"title": "Test Konu", "hook_question": "Soru?"},
         ),
@@ -741,10 +741,27 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "build_scene_clip", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "generate_subtitle_clips", lambda *a: [])
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
-    monkeypatch.setattr(pipeline, "get_ambient_music", lambda p: None)
+    monkeypatch.setattr(pipeline, "get_ambient_music", lambda p, content_analysis=None, memory=None: None)
     monkeypatch.setattr(pipeline, "validate_video_quality", lambda p: {"passed": True})
     monkeypatch.setattr(pipeline, "save_topic_to_history", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
+
+    # Mock the content_memory module functions used by run()
+    cm = pipeline.content_memory_module
+    monkeypatch.setattr(cm, "load_content_memory", lambda *a, **kw: [])
+    monkeypatch.setattr(cm, "analyze_script_content", lambda *a, **kw: {
+        "topic": "Test", "angle": "test angle", "summary": "s",
+        "main_claim": "c", "key_facts": [], "entities": [],
+        "mood": "mysterious", "energy": 0.5, "tension": 0.3,
+    })
+    monkeypatch.setattr(cm, "check_content_novelty", lambda *a, **kw: {
+        "decision": "ACCEPT", "reason": "test", "similarity_score": 0.0,
+        "fact_overlap_pct": 0, "nearest_content": None, "revision_hint": None,
+    })
+    monkeypatch.setattr(cm, "check_visual_reuse", lambda *a, **kw: [])
+    monkeypatch.setattr(cm, "build_content_entry", lambda *a, **kw: {"content_id": "test"})
+    monkeypatch.setattr(cm, "save_content_entry", lambda *a, **kw: None)
+    monkeypatch.setattr(cm, "compute_ducking_volume", lambda *a, **kw: lambda t: 0.18)
 
     published_calls = []
     monkeypatch.setattr(

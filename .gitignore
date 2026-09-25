@@ -49,6 +49,7 @@ scratch_*.py
 # Persistent local state
 approvals.json
 topics_history.json
+content_memory.json
 client_secrets.json
 token.json
 

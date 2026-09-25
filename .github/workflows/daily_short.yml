@@ -48,6 +48,7 @@ jobs:
           path: |
             topics_history.json
             approvals.json
+            content_memory.json
           key: shorts-history-${{ github.run_id }}
           restore-keys: |
             shorts-history-
@@ -72,6 +73,7 @@ jobs:
             output/
             topics_history.json
             approvals.json
+            content_memory.json
           if-no-files-found: warn
           retention-days: 7
 
