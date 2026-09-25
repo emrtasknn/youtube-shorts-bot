@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: historical-shorts-generator
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,6 +38,9 @@ jobs:
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
+
+      - name: V1.1 Python syntax check
+        run: python -m py_compile pipeline.py event_memory.py content_memory.py gemini_config.py youtube_uploader.py
 
       - name: Generate Short
         env:
