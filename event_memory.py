@@ -926,167 +926,183 @@ SADECE şu JSON formatında yanıt ver:
 # ---------------------------------------------------------------------------
 
 
-def search_wikimedia_image(search_term: str, event_title: str = "") -> Optional[dict]:
-    """Search Wikimedia Commons for a historical image related to the event.
+def _visual_tokens(text: str) -> set[str]:
+    """Normalize visual search text into meaningful tokens."""
+    stop = {"historical", "history", "photo", "photograph", "image", "documentary",
+            "scene", "cinematic", "vertical", "realistic", "reconstruction",
+            "the", "and", "with", "from", "this", "that", "about"}
+    return {
+        token.lower()
+        for token in re.findall(r"[A-Za-zÀ-ž0-9]+", str(text))
+        if len(token) >= 4 and token.lower() not in stop
+    }
 
-    Returns a dict with source metadata, or None if not found.
-    """
+
+def _visual_relevance(query: str, title: str, description: str = "") -> float:
+    """Deterministic relevance score; weakly related images are rejected."""
+    q = _visual_tokens(query)
+    if not q:
+        return 0.0
+    hay = _visual_tokens(f"{title} {description}")
+    overlap = len(q & hay)
+    coverage = overlap / max(len(q), 1)
+    precision = overlap / max(len(hay), 1)
+    return round(min(1.0, 0.78 * coverage + 0.22 * precision), 3)
+
+
+def search_wikimedia_image(
+    search_term: str,
+    event_title: str = "",
+    excluded_urls: Optional[list[str]] = None,
+    min_relevance: float = 0.55,
+) -> Optional[dict]:
+    """Search Wikimedia Commons and reject weakly related results."""
+    excluded = set(excluded_urls or [])
     try:
         import requests
         params = {
-            "action": "query",
-            "list": "search",
-            "srsearch": f"{search_term} historical",
-            "srnamespace": "6",  # File namespace
-            "srlimit": "5",
-            "format": "json",
-            "origin": "*",
+            "action": "query", "list": "search", "srsearch": search_term,
+            "srnamespace": "6", "srlimit": "8", "format": "json", "origin": "*",
         }
         resp = requests.get(
-            "https://commons.wikimedia.org/w/api.php",
-            params=params,
-            timeout=10,
-            headers={"User-Agent": "YouTubeShortsBot/2.0 (historical-content-bot)"},
+            "https://commons.wikimedia.org/w/api.php", params=params, timeout=10,
+            headers={"User-Agent": "YouTubeShortsBot/2.2 (historical-content-bot)"},
         )
         resp.raise_for_status()
-        data = resp.json()
-        results = data.get("query", {}).get("search", [])
-        if not results:
-            return None
-
-        # Get the first relevant file
-        file_title = results[0].get("title", "")
-        if not file_title:
-            return None
-
-        # Get image info
-        info_params = {
-            "action": "query",
-            "titles": file_title,
-            "prop": "imageinfo",
-            "iiprop": "url|extmetadata",
-            "format": "json",
-            "origin": "*",
-        }
-        info_resp = requests.get(
-            "https://commons.wikimedia.org/w/api.php",
-            params=info_params,
-            timeout=10,
-            headers={"User-Agent": "YouTubeShortsBot/2.0 (historical-content-bot)"},
-        )
-        info_resp.raise_for_status()
-        info_data = info_resp.json()
-
-        pages = info_data.get("query", {}).get("pages", {})
-        for page_id, page in pages.items():
-            if page_id == "-1":
+        results = resp.json().get("query", {}).get("search", [])
+        ranked = []
+        for item in results:
+            title = item.get("title", "")
+            snippet = re.sub(r"<[^>]+>", " ", item.get("snippet", ""))
+            score = _visual_relevance(search_term, title, snippet)
+            ranked.append((score, item))
+        ranked.sort(key=lambda x: x[0], reverse=True)
+        for score, item in ranked[:5]:
+            file_title = item.get("title", "")
+            if not file_title:
                 continue
-            imageinfos = page.get("imageinfo", [])
-            if not imageinfos:
-                continue
-            info = imageinfos[0]
-            url = info.get("url", "")
-            if not url or not url.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
-                continue
-
-            meta = info.get("extmetadata", {})
-            license_name = meta.get("LicenseShortName", {}).get("value", "")
-            author = meta.get("Artist", {}).get("value", "")
-            # Strip HTML from author
-            author = re.sub(r"<[^>]+>", "", author).strip()
-
-            return {
-                "source_type": "wikimedia",
-                "source_url": f"https://commons.wikimedia.org/wiki/{file_title.replace(' ', '_')}",
-                "image_url": url,
-                "title": file_title,
-                "license": license_name,
-                "attribution": author,
+            info_params = {
+                "action": "query", "titles": file_title, "prop": "imageinfo",
+                "iiprop": "url|extmetadata", "format": "json", "origin": "*",
             }
-
+            info_resp = requests.get(
+                "https://commons.wikimedia.org/w/api.php", params=info_params, timeout=10,
+                headers={"User-Agent": "YouTubeShortsBot/2.2 (historical-content-bot)"},
+            )
+            info_resp.raise_for_status()
+            pages = info_resp.json().get("query", {}).get("pages", {})
+            for page_id, page in pages.items():
+                if page_id == "-1":
+                    continue
+                infos = page.get("imageinfo", [])
+                if not infos:
+                    continue
+                info = infos[0]
+                url = info.get("url", "")
+                if not url or url in excluded or not url.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                    continue
+                if score < min_relevance:
+                    continue
+                meta = info.get("extmetadata", {})
+                author = re.sub(r"<[^>]+>", "", meta.get("Artist", {}).get("value", "")).strip()
+                return {
+                    "source_type": "wikimedia",
+                    "source_url": f"https://commons.wikimedia.org/wiki/{file_title.replace(" ", "_")}",
+                    "image_url": url, "title": file_title,
+                    "license": meta.get("LicenseShortName", {}).get("value", ""),
+                    "attribution": author, "relevance_score": score, "search_query": search_term,
+                }
     except Exception as exc:
-        log.debug("Wikimedia search failed for '%s': %s", search_term, exc)
-
+        log.debug("Wikimedia search failed for %r: %s", search_term, exc)
     return None
 
 
-def search_openverse_image(search_terms: list[str], excluded_urls: Optional[list[str]] = None) -> Optional[dict]:
-    """Find a real openly licensed image after Wikimedia Commons fails."""
+def search_openverse_image(
+    search_terms: list[str], excluded_urls: Optional[list[str]] = None, min_relevance: float = 0.55
+) -> Optional[dict]:
+    """Find an openly licensed image and reject weakly related results."""
     excluded = set(excluded_urls or [])
-    query = " ".join(str(x).strip() for x in search_terms if str(x).strip())[:220]
-    if not query:
+    queries = [str(x).strip() for x in search_terms if str(x).strip()]
+    if not queries:
         return None
     try:
         import requests
-        response = requests.get(
-            "https://api.openverse.org/v1/images/",
-            params={"q": query, "page_size": 10},
-            timeout=12,
-            headers={"User-Agent": "YouTubeShortsBot/2.1"},
-        )
-        response.raise_for_status()
-        results = response.json().get("results", [])
-        tokens = {x.lower() for x in re.findall(r"[A-Za-zÀ-ž0-9]+", query) if len(x) >= 4}
-        ranked = []
-        for item in results:
-            url = item.get("url", "")
-            if not url or url in excluded:
-                continue
-            haystack = " ".join([
-                str(item.get("title", "")),
-                str(item.get("description", "")),
-                " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", [])),
-            ]).lower()
-            overlap = sum(1 for token in tokens if token in haystack)
-            ranked.append((overlap, item))
-        ranked.sort(key=lambda x: x[0], reverse=True)
-        for _, item in ranked:
-            url = item.get("url", "")
-            if url:
-                return {
-                    "source_type": "openverse",
-                    "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
-                    "image_url": url,
-                    "title": item.get("title", ""),
-                    "license": item.get("license", ""),
-                    "attribution": item.get("attribution") or item.get("creator", ""),
-                    "creator": item.get("creator", ""),
-                    "provider": item.get("provider", ""),
-                }
+        best = None
+        for query in queries[:5]:
+            response = requests.get(
+                "https://api.openverse.org/v1/images/",
+                params={"q": query, "page_size": 10}, timeout=12,
+                headers={"User-Agent": "YouTubeShortsBot/2.2"},
+            )
+            response.raise_for_status()
+            for item in response.json().get("results", []):
+                url = item.get("url", "")
+                if not url or url in excluded:
+                    continue
+                haystack = " ".join([str(item.get("title", "")), str(item.get("description", "")),
+                    " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", []))])
+                score = _visual_relevance(query, haystack)
+                if score < min_relevance:
+                    continue
+                if best is None or score > best[0]:
+                    best = (score, item, query)
+        if best:
+            score, item, query = best
+            return {
+                "source_type": "openverse",
+                "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
+                "image_url": item.get("url", ""), "title": item.get("title", ""),
+                "license": item.get("license", ""),
+                "attribution": item.get("attribution") or item.get("creator", ""),
+                "creator": item.get("creator", ""), "provider": item.get("provider", ""),
+                "relevance_score": round(score, 3), "search_query": query,
+            }
     except Exception as exc:
-        log.debug("Openverse search failed for '%s': %s", query, exc)
+        log.debug("Openverse search failed: %s", exc)
     return None
 
 
+def build_visual_search_queries(scene_description: str, visual_intent: dict, event_title: str = "") -> list[str]:
+    """Build precise scene-specific queries instead of searching raw narration."""
+    explicit = visual_intent.get("search_queries", []) if isinstance(visual_intent, dict) else []
+    must_show = visual_intent.get("must_show", []) if isinstance(visual_intent, dict) else []
+    primary = visual_intent.get("primary_subject", "") if isinstance(visual_intent, dict) else ""
+    queries = [str(q).strip() for q in explicit if str(q).strip()]
+    if primary:
+        queries.append(f"{event_title} {primary}".strip())
+    if must_show:
+        queries.append(f"{event_title} {" ".join(str(x) for x in must_show[:3])}".strip())
+    if not queries:
+        queries.append(f"{event_title} {scene_description[:100]}".strip())
+    seen = set()
+    unique = []
+    for q in queries:
+        key = q.lower()
+        if key not in seen:
+            seen.add(key); unique.append(q)
+    return unique[:6]
+
+
 def resolve_visual_source(
-    scene_description: str,
-    visual_search_terms: list[str],
-    event_title: str = "",
-    excluded_urls: Optional[list[str]] = None,
+    scene_description: str, visual_search_terms: list[str], event_title: str = "",
+    excluded_urls: Optional[list[str]] = None, visual_intent: Optional[dict] = None,
 ) -> dict:
-    """Wikimedia -> Openverse -> AI reconstruction, with provenance."""
+    """Resolve visual: relevant real source first, otherwise scene-specific AI."""
     excluded = set(excluded_urls or [])
-    terms = [x for x in visual_search_terms if x]
-    if event_title:
-        terms.append(event_title)
-
-    for term in terms[:4]:
-        result = search_wikimedia_image(term, event_title)
-        if result and result.get("image_url") not in excluded:
-            log.info("VISUAL: Scene '%s...' → Wikimedia (%s)", scene_description[:40], result.get("title", ""))
+    intent = visual_intent or {}
+    queries = build_visual_search_queries(scene_description, intent, event_title)
+    for query in queries:
+        result = search_wikimedia_image(query, event_title, list(excluded), min_relevance=0.55)
+        if result:
+            log.info("VISUAL: %s → Wikimedia %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
             return result
-
-    result = search_openverse_image(terms[:3], excluded_urls=list(excluded))
+    result = search_openverse_image(queries, list(excluded), min_relevance=0.55)
     if result:
-        log.info("VISUAL: Scene '%s...' → Openverse (%s)", scene_description[:40], result.get("title", ""))
+        log.info("VISUAL: %s → Openverse %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
         return result
-
-    log.info("VISUAL: Scene '%s...' → AI reconstruction", scene_description[:40])
-    return {
-        "source_type": "ai_reconstruction",
-        "note": "No suitable real visual found after Wikimedia + Openverse search.",
-    }
-
+    log.info("VISUAL: %s → AI reconstruction; no relevant real visual found", scene_description[:40])
+    return {"source_type": "ai_reconstruction", "note": "No sufficiently relevant real visual found.", "search_queries": queries, "relevance_threshold": 0.55}
+}
 
 # ---------------------------------------------------------------------------
 # Phase 7 — Full Discovery Pipeline Entry Point
