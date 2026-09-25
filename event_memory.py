@@ -571,75 +571,120 @@ SADECE şu JSON formatında yanıt ver:
 # ---------------------------------------------------------------------------
 
 
-def filter_candidates(
-    candidates: list[dict],
-    event_memory: list[dict],
-) -> list[dict]:
-    """Filter a batch of candidates against event memory AND within the batch itself.
+def check_event_identity_batch(candidates: list[dict], event_memory: list[dict]) -> list[dict]:
+    """Check a discovery batch in ONE Gemini call to reduce quota usage."""
+    if not candidates:
+        return []
 
-    Returns only NEW_EVENT candidates.
-    Logs KNOWN_EVENT and UNCERTAIN rejections.
-    """
-    log.info(
-        "\n--- EVENT FILTER ---\n"
-        "Discovered: %d\n"
-        "Checking against %d known events + within-batch dedup",
-        len(candidates),
-        len(event_memory),
-    )
+    previous_summary = _build_event_memory_summary(event_memory)
+    payload = []
+    for idx, c in enumerate(candidates):
+        payload.append({
+            "index": idx,
+            "canonical_title": c.get("canonical_title", ""),
+            "aliases": c.get("aliases", []),
+            "date": c.get("date", ""),
+            "location": c.get("location", ""),
+            "entities": c.get("entities", []),
+            "event_summary": c.get("event_summary", ""),
+            "known_facts": c.get("known_facts", [])[:5],
+        })
 
-    accepted: list[dict] = []
-    batch_memory: list[dict] = []
+    prompt = f"""Sen tarih olayı kimlik eşleştirme uzmanısın.
 
-    for candidate in candidates:
+Daha önce kullanılmış olaylar:
+{previous_summary}
+
+Yeni adaylar:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
+
+Her aday için karar ver:
+- KNOWN_EVENT: Daha önce kullanılan olayla aynı temel tarihsel olay.
+- NEW_EVENT: Tamamen farklı tarihsel olay.
+- UNCERTAIN: Emin değilsen veya bilgi yetersizse.
+- Farklı başlık/açı aynı olayı değiştirmez.
+- Adayların kendi aralarında aynı olay olması halinde yalnızca ilkini NEW_EVENT, diğerini KNOWN_EVENT yap.
+- API hatası veya yetersiz bilgi varsa tahmin etme; UNCERTAIN kullan.
+
+SADECE JSON:
+{{
+  "results": [
+    {{
+      "index": 0,
+      "decision": "NEW_EVENT",
+      "reason": "kısa gerekçe",
+      "confidence": 0.95,
+      "matched_event": null,
+      "matched_event_id": null
+    }}
+  ]
+}}
+"""
+    result = _call_gemini_json(prompt, label="batch event identity check")
+    if not result or not isinstance(result, dict):
+        log.warning("EVENT IDENTITY BATCH: API failed — rejecting all candidates.")
+        return [
+            {"candidate": c, "identity": {"decision": UNCERTAIN, "reason": "Batch identity check unavailable.", "confidence": 0.0,
+                                          "matched_event": None, "matched_event_id": None}}
+            for c in candidates
+        ]
+
+    raw = result.get("results", [])
+    by_index = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("index"))
+        except (TypeError, ValueError):
+            continue
+        by_index[idx] = item
+
+    output = []
+    for idx, candidate in enumerate(candidates):
+        item = by_index.get(idx)
+        if not item:
+            identity = {"decision": UNCERTAIN, "reason": "Candidate missing from batch response.", "confidence": 0.0,
+                        "matched_event": None, "matched_event_id": None}
+        else:
+            decision = str(item.get("decision", UNCERTAIN)).upper()
+            if decision not in (NEW_EVENT, KNOWN_EVENT, UNCERTAIN):
+                decision = UNCERTAIN
+            identity = {"decision": decision, "reason": item.get("reason", ""),
+                        "confidence": float(item.get("confidence", 0.0)),
+                        "matched_event": item.get("matched_event"),
+                        "matched_event_id": item.get("matched_event_id")}
+        output.append({"candidate": candidate, "identity": identity})
+    return output
+
+
+def filter_candidates(candidates: list[dict], event_memory: list[dict]) -> list[dict]:
+    """Keep only NEW_EVENT candidates; reject KNOWN_EVENT and UNCERTAIN safely."""
+    log.info("\n--- EVENT FILTER ---\nDiscovered: %d\nChecking against %d known events + within-batch dedup",
+             len(candidates), len(event_memory))
+
+    checked = check_event_identity_batch(candidates, event_memory)
+    accepted = []
+
+    for item in checked:
+        candidate = item["candidate"]
+        identity = item["identity"]
         title = candidate.get("canonical_title", "unknown")
-        identity = check_event_identity(candidate, event_memory, batch_memory)
         decision = identity["decision"]
 
         if decision == NEW_EVENT:
             accepted.append(candidate)
-            # Add to batch memory to prevent within-batch duplicates
-            batch_memory.append({
-                "event_id": f"batch_{uuid.uuid4().hex[:8]}",
-                "canonical_title": candidate.get("canonical_title", ""),
-                "aliases": candidate.get("aliases", []),
-                "date": candidate.get("date", ""),
-                "date_normalized": candidate.get("date_normalized", ""),
-                "location": candidate.get("location", ""),
-                "entities": candidate.get("entities", []),
-                "event_summary": candidate.get("event_summary", ""),
-                "core_facts": candidate.get("known_facts", []),
-                "claims": [],
-                "sources": [],
-                "status": "batch_candidate",
-            })
             log.info("ACCEPTED: '%s'", title)
         elif decision == KNOWN_EVENT:
-            log.info(
-                "REJECTED EVENT\nCandidate: %s\nMatched event: %s\nReason: %s\nConfidence: %.2f",
-                title,
-                identity.get("matched_event", "N/A"),
-                identity.get("reason", "N/A"),
-                identity.get("confidence", 0),
-            )
-        else:  # UNCERTAIN
-            log.warning(
-                "UNCERTAIN: '%s' — %s — rejecting as precaution.",
-                title,
-                identity.get("reason", ""),
-            )
+            log.info("REJECTED EVENT | Candidate=%s | Matched=%s | Reason=%s | Confidence=%.2f",
+                     title, identity.get("matched_event", "N/A"), identity.get("reason", "N/A"),
+                     identity.get("confidence", 0))
+        else:
+            log.warning("UNCERTAIN: '%s' — %s — rejecting as precaution.",
+                        title, identity.get("reason", ""))
 
-    previously_used = len(candidates) - len(accepted)
-    log.info(
-        "\n--- EVENT FILTER RESULT ---\n"
-        "%d discovered\n"
-        "%d rejected (known or uncertain)\n"
-        "%d remaining",
-        len(candidates),
-        previously_used,
-        len(accepted),
-    )
-
+    log.info("\n--- EVENT FILTER RESULT ---\n%d discovered\n%d rejected\n%d remaining",
+             len(candidates), len(candidates) - len(accepted), len(accepted))
     return accepted
 
 
@@ -887,46 +932,81 @@ def search_wikimedia_image(search_term: str, event_title: str = "") -> Optional[
     return None
 
 
+def search_openverse_image(search_terms: list[str], excluded_urls: Optional[list[str]] = None) -> Optional[dict]:
+    """Find a real openly licensed image after Wikimedia Commons fails."""
+    excluded = set(excluded_urls or [])
+    query = " ".join(str(x).strip() for x in search_terms if str(x).strip())[:220]
+    if not query:
+        return None
+    try:
+        import requests
+        response = requests.get(
+            "https://api.openverse.org/v1/images/",
+            params={"q": query, "page_size": 10},
+            timeout=12,
+            headers={"User-Agent": "YouTubeShortsBot/2.1"},
+        )
+        response.raise_for_status()
+        results = response.json().get("results", [])
+        tokens = {x.lower() for x in re.findall(r"[A-Za-zÀ-ž0-9]+", query) if len(x) >= 4}
+        ranked = []
+        for item in results:
+            url = item.get("url", "")
+            if not url or url in excluded:
+                continue
+            haystack = " ".join([
+                str(item.get("title", "")),
+                str(item.get("description", "")),
+                " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", [])),
+            ]).lower()
+            overlap = sum(1 for token in tokens if token in haystack)
+            ranked.append((overlap, item))
+        ranked.sort(key=lambda x: x[0], reverse=True)
+        for _, item in ranked:
+            url = item.get("url", "")
+            if url:
+                return {
+                    "source_type": "openverse",
+                    "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
+                    "image_url": url,
+                    "title": item.get("title", ""),
+                    "license": item.get("license", ""),
+                    "attribution": item.get("attribution") or item.get("creator", ""),
+                    "creator": item.get("creator", ""),
+                    "provider": item.get("provider", ""),
+                }
+    except Exception as exc:
+        log.debug("Openverse search failed for '%s': %s", query, exc)
+    return None
+
+
 def resolve_visual_source(
     scene_description: str,
     visual_search_terms: list[str],
     event_title: str = "",
+    excluded_urls: Optional[list[str]] = None,
 ) -> dict:
-    """Resolve the best visual source for a scene.
+    """Wikimedia -> Openverse -> AI reconstruction, with provenance."""
+    excluded = set(excluded_urls or [])
+    terms = [x for x in visual_search_terms if x]
+    if event_title:
+        terms.append(event_title)
 
-    Priority:
-    1. Wikimedia/Wikipedia historical visual
-    2. Web visual (returns search metadata)
-    3. AI reconstruction (fallback)
-
-    Returns a dict with source_type and metadata.
-    """
-    # 1. Try Wikimedia
-    search_terms = visual_search_terms + [event_title] if event_title else visual_search_terms
-    for term in search_terms[:3]:
-        if not term:
-            continue
+    for term in terms[:4]:
         result = search_wikimedia_image(term, event_title)
-        if result:
+        if result and result.get("image_url") not in excluded:
             log.info("VISUAL: Scene '%s...' → Wikimedia (%s)", scene_description[:40], result.get("title", ""))
             return result
 
-    # 2. Web visual (record intent — actual download handled by pipeline)
-    if visual_search_terms:
-        log.info("VISUAL: Scene '%s...' → Web search (%s)", scene_description[:40], visual_search_terms[0])
-        return {
-            "source_type": "web_search",
-            "search_term": visual_search_terms[0] if visual_search_terms else scene_description[:60],
-            "event_title": event_title,
-            "image_url": None,
-            "source_url": None,
-        }
+    result = search_openverse_image(terms[:3], excluded_urls=list(excluded))
+    if result:
+        log.info("VISUAL: Scene '%s...' → Openverse (%s)", scene_description[:40], result.get("title", ""))
+        return result
 
-    # 3. AI reconstruction fallback
     log.info("VISUAL: Scene '%s...' → AI reconstruction", scene_description[:40])
     return {
         "source_type": "ai_reconstruction",
-        "note": "No suitable historical visual found. AI generation required.",
+        "note": "No suitable real visual found after Wikimedia + Openverse search.",
     }
 
 
