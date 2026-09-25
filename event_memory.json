@@ -67,5 +67,39 @@
     "first_video_id": "run_20260925_191211",
     "created_at": "2026-09-25T19:12:11",
     "status": "used"
+  },
+  {
+    "event_id": "evt_3b17f2959271",
+    "canonical_title": "The London Beer Flood",
+    "aliases": [
+      "Londra Bira Seli",
+      "1814 St Giles seli"
+    ],
+    "date": "1814",
+    "date_normalized": "1814",
+    "location": "St Giles, London",
+    "entities": [
+      "Meux and Company Brewery"
+    ],
+    "event_summary": "Meux and Company bira fabrikasında devasa bir fıçı patladı ve 1.4 milyon litreden fazla biranın sokaklara sel gibi akmasına neden oldu. Bu alışılmadık ve yıkıcı olay, çevredeki evlerin yıkılmasına ve maalesef 8 kişinin ölümüne yol açtı.",
+    "core_facts": [
+      "17 Ekim 1814 tarihinde St Giles, Londra'da Meux and Company bira fabrikasında gerçekleşmiştir.",
+      "Yaklaşık 1.47 milyon litre (323.000 galon) porter bira sokağa yayılmıştır.",
+      "Olay sonucunda 8 kişi boğulma veya enkaz altında kalma nedeniyle hayatını kaybetmiştir.",
+      "Devasa bir metal fıçı halkasının yerinden çıkması patlamayı tetiklemiştir.",
+      "Resmi mahkeme süreci olayı bir kaza (Tanrı'nın bir eylemi) olarak nitelendirmiş ve kimse ceza almamıştır."
+    ],
+    "claims": [
+      "İçki yasağı yanlılarının olayı bir propaganda aracı olarak kullanıp kullanmadığına dair tarihsel tartışmalar.",
+      "Bira selinden etkilenenlerin ne kadarının alkol zehirlenmesi yaşadığına dair tıbbi belirsizlikler."
+    ],
+    "sources": [
+      "The Times, 19 Ekim 1814 tarihli sayı, 'Dreadful Accident at Meux's Brewery'",
+      "British Parliamentary Papers: Report on the Regulation of Breweries"
+    ],
+    "first_video_id": "run_20260925_200328",
+    "created_at": "2026-09-25T19:53:29",
+    "status": "used",
+    "completed_at": "2026-09-25T20:03:28"
   }
 ]
