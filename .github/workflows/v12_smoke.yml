@@ -1,0 +1,40 @@
+name: V1.2 Smoke Tests
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Python syntax
+        run: python -m py_compile pipeline.py event_memory.py content_memory.py gemini_config.py youtube_uploader.py
+
+      - name: Visual and MoviePy API smoke test
+        run: |
+          python - <<'PY'
+          from moviepy import AudioFileClip
+          import event_memory
+
+          assert hasattr(AudioFileClip, "transform"), "MoviePy AudioFileClip.transform is unavailable"
+          assert event_memory._visual_relevance("Emu War Lewis gun", "Lewis Gun during Emu War") >= 0.55
+          assert event_memory._visual_relevance("10,000 rounds ammunition", "random desert landscape") < 0.55
+
+          print("V1.2 smoke tests passed")
+          PY
