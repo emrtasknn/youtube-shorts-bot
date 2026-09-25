@@ -49,8 +49,8 @@ SCENE_COUNT = 7
 TARGET_DURATION = int(os.getenv("TARGET_DURATION", "34"))
 MIN_DURATION = int(os.getenv("MIN_DURATION", "28"))
 MAX_DURATION = int(os.getenv("MAX_DURATION", "40"))
-MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "55"))
-MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "78"))
+MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "56"))
+MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "72"))
 
 # The image provider's mark is kept out of the final frame by cropping the
 # lower part of the generated image. This is intentionally a fixed crop,
@@ -118,8 +118,8 @@ def validate_script(data: dict) -> list[dict]:
         if not narration or not image_prompt:
             raise ValueError(f"Scene {i} is missing narration or image_prompt")
         word_count = len(narration.split())
-        if word_count < 5 or word_count > 16:
-            raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words")
+        if word_count < 6 or word_count > 12:
+            raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
         total_words += word_count
         cleaned.append({"narration": narration, "image_prompt": image_prompt})
 
@@ -404,11 +404,12 @@ EFSANELER / SPEKÜLASYONLAR:
 {myths_str}
 
 Bu olayı tam {SCENE_COUNT} sahnelik, yüksek tempolu bir Shorts senaryosu olarak yaz.
-Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye; toplam 55-78 kelime.
-Amaç: hızlı, yoğun ve 30-38 saniyelik bir Shorts. 7 sahneye kelimeleri dengeli dağıt.
+Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye; toplam 56-72 kelime.
+AMAÇ: 7 sahnenin toplamı kesinlikle 72 kelimeyi geçmesin. Her sahne 6-12 kelime olsun; mümkünse 8-10 kelime kullan.
+Öncelik kısa ve doğal Türkçe cümlelerdir. 30-38 saniyelik, hızlı ve yoğun bir Shorts üret.
 
 Sahne Hikaye Şablonu:
-- 1. Sahne: GÜÇLÜ KANCA - 8-14 kelime. Başlığı tekrar etme. İlk cümlede şaşırtıcı gerçek, sayı, imkânsız görünen durum veya doğrudan soru kullan.
+- 1. Sahne: GÜÇLÜ KANCA - 6-10 kelime. Başlığı tekrar etme. İlk cümlede şaşırtıcı gerçek, sayı, imkânsız görünen durum veya doğrudan soru kullan.
 - 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları (DOĞRULANMIŞ GERÇEKLERİ KULLAN).
 - 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut veya spekülasyonlar.
 - 6. Sahne: Yankı - Bu olayın tarihte bıraktığı silinmez iz.
@@ -454,7 +455,7 @@ Kurallar:
             except Exception as exc:
                 err_msg = str(exc)
                 log.warning("Script parsing or validation failed: %s", err_msg)
-                current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\nLütfen word count ve diğer kurallara sıkı sıkıya uyarak tekrar oluştur."
+                current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\nKRİTİK: Önceki çıktı fazla uzundu. Bu kez 7 sahnenin TOPLAM NARRATION kelime sayısı 56-72 arasında olmalı; 72 kelimeyi ASLA aşma. Her sahne 6-12 kelime. Gereksiz sıfatları ve açıklamaları çıkar. Sadece kısa, doğal Türkçe cümleler yaz."
 
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
