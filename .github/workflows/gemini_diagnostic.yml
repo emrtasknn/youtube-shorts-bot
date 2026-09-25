@@ -1,0 +1,83 @@
+name: Gemini Model Diagnostic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create Diagnostic Script
+        run: |
+          cat << 'EOF' > diagnostic.py
+          import os
+          import sys
+
+          try:
+              from google import genai
+          except ImportError:
+              print("google-genai SDK is not installed.")
+              sys.exit(1)
+
+          def main():
+              api_key = os.environ.get("GEMINI_API_KEY")
+              if not api_key:
+                  print("GEMINI_API_KEY is missing from environment.")
+                  sys.exit(1)
+                  
+              print("SDK available. Fetching models...")
+              try:
+                  client = genai.Client(api_key=api_key)
+                  models = client.models.list()
+                  
+                  available = []
+                  generate_candidates = []
+                  
+                  for m in models:
+                      name = getattr(m, "name", "unknown")
+                      display_name = getattr(m, "display_name", "unknown")
+                      supported_methods = getattr(m, "supported_generation_methods", [])
+                      
+                      model_info = {
+                          "name": name,
+                          "display_name": display_name,
+                          "supported_methods": supported_methods
+                      }
+                      available.append(model_info)
+                      
+                      if "generateContent" in supported_methods:
+                          generate_candidates.append(model_info)
+                          
+                  print("\nAVAILABLE MODELS")
+                  for m in available:
+                      print(f"- model: {m['name']}")
+                      print(f"  display_name: {m['display_name']}")
+                      print(f"  supported_methods: {m['supported_methods']}")
+                      
+                  print("\nGENERATE_CONTENT CANDIDATES")
+                  for m in generate_candidates:
+                      print(f"- {m['name']} ({m['display_name']})")
+                      
+              except Exception as e:
+                  print(f"\nAPI Error: {e}")
+                  
+          if __name__ == "__main__":
+              main()
+          EOF
+
+      - name: Run Diagnostic
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python diagnostic.py
