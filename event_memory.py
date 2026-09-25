@@ -1102,7 +1102,6 @@ def resolve_visual_source(
         return result
     log.info("VISUAL: %s → AI reconstruction; no relevant real visual found", scene_description[:40])
     return {"source_type": "ai_reconstruction", "note": "No sufficiently relevant real visual found.", "search_queries": queries, "relevance_threshold": 0.55}
-}
 
 # ---------------------------------------------------------------------------
 # Phase 7 — Full Discovery Pipeline Entry Point
