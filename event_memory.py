@@ -102,7 +102,8 @@ def save_event_to_memory(event: dict, memory_path: Optional[Path] = None):
         )
         log.info("Event memory updated: %d events total", len(events))
     except Exception as exc:
-        log.warning("Could not save event memory: %s", exc)
+        log.error("Could not save event memory: %s", exc)
+        raise RuntimeError(f"Event memory persistence failed: {exc}") from exc
 
 
 def build_event_record(
@@ -118,10 +119,11 @@ def build_event_record(
     sources: list[str],
     first_video_id: str = "",
     status: str = "used",
+    event_id: str = "",
 ) -> dict:
     """Build a canonical event memory record."""
     return {
-        "event_id": f"evt_{uuid.uuid4().hex[:12]}",
+        "event_id": event_id or f"evt_{uuid.uuid4().hex[:12]}",
         "canonical_title": canonical_title,
         "aliases": aliases,
         "date": date,
