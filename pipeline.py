@@ -1249,6 +1249,10 @@ def on_callback_query(call):
 # -----------------------------
 @bot.message_handler(commands=["start", "help"])
 def on_start(message):
+    if str(message.chat.id) != str(TELEGRAM_CHAT_ID):
+        log.warning("Unauthorized access to /start from %s", message.chat.id)
+        return
+        
     bot.reply_to(
         message,
         "🤖 *YouTube Shorts Bot Kontrol Merkezi*\n\n"
@@ -1262,6 +1266,9 @@ def on_start(message):
 
 @bot.message_handler(commands=["status"])
 def on_status(message):
+    if str(message.chat.id) != str(TELEGRAM_CHAT_ID):
+        return
+        
     approvals = load_approvals()
     if not approvals:
         bot.reply_to(message, "Henüz kayıtlı bir video üretimi yok.")
@@ -1285,22 +1292,40 @@ def on_status(message):
 
 @bot.message_handler(commands=["generate"])
 def on_generate(message):
+    if str(message.chat.id) != str(TELEGRAM_CHAT_ID):
+        bot.reply_to(message, "Yetkisiz erişim. Bu botu kullanma yetkiniz yok.")
+        log.warning("Unauthorized access attempt to /generate from chat_id %s", message.chat.id)
+        return
+
     bot.reply_to(message, "🚀 Yeni video üretimi başlatıldı! Tamamlandığında önizleme gönderilecektir...")
-    try:
-        run()
-    except Exception as exc:
-        bot.reply_to(message, f"❌ Video üretimi sırasında hata oluştu: {exc}")
+    
+    def background_run():
+        try:
+            run()
+        except Exception as exc:
+            log.error(f"Background video generation failed: {exc}", exc_info=True)
+            try:
+                bot.send_message(message.chat.id, f"❌ Video üretimi sırasında hata oluştu: {exc}")
+            except Exception as nested_exc:
+                log.error(f"Failed to send error message to Telegram: {nested_exc}")
+
+    import threading
+    threading.Thread(target=background_run, daemon=True).start()
 
 
 @bot.message_handler(commands=["history"])
 def on_history(message):
-    history = load_topic_history()
+    if str(message.chat.id) != str(TELEGRAM_CHAT_ID):
+        return
+
+    import event_memory
+    history = event_memory.load_event_memory()
     if not history:
-        bot.reply_to(message, "Henüz işlenmiş bir konu geçmişi bulunmuyor.")
+        bot.reply_to(message, "Henüz işlenmiş bir konu geçmişi bulunmuyor (V2).")
         return
     lines = ["📚 *Son Üretilen Konular (Son 10):*\n"]
     for i, h in enumerate(history[-10:], 1):
-        lines.append(f"{i}. *{h.get('title')}* ({h.get('created_at', '')[:10]})")
+        lines.append(f"{i}. *{h.get('canonical_title')}* ({h.get('created_at', '')[:10]})")
     bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
 
 
