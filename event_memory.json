@@ -1,0 +1,36 @@
+[
+  {
+    "event_id": "evt_a96c05b81f09",
+    "canonical_title": "The Dancing Plague of 1518",
+    "aliases": [
+      "1518 Dans Vebası",
+      "Dans Çılgınlığı"
+    ],
+    "date": "1518",
+    "date_normalized": "1518",
+    "location": "Strasbourg, Alsace",
+    "entities": [
+      "Frau Troffea",
+      "Strasbourg citizens"
+    ],
+    "event_summary": "A sudden, uncontrollable epidemic of dancing broke out in Strasbourg, involving hundreds of people who danced for weeks until they collapsed from exhaustion or died.",
+    "core_facts": [
+      "Olay Temmuz 1518'de Strasbourg'da başladı.",
+      "Frau Troffea adlı bir kadın caddede kontrolsüzce dans etmeye başladı.",
+      "Strasbourg şehir konseyi olayı bir kamu sağlığı krizi olarak kabul ederek kısıtlamalar getirdi.",
+      "Zirve noktasında yaklaşık 400 kişi dans etmeye katıldı.",
+      "Bazı katılımcılar aşırı yorgunluk, kalp krizi veya inme nedeniyle hayatını kaybetti."
+    ],
+    "claims": [
+      "Ölü sayısı konusunda çelişkili kaynaklar mevcuttur; bazıları abartılı rakamlar vermektedir.",
+      "Ergot zehirlenmesi (halüsinatif mantar) teorisi tıbbi açıdan birçok tarihçi tarafından şüpheli bulunmaktadır."
+    ],
+    "sources": [
+      "John Waller, 'A Time to Dance, a Time to Die: The Extraordinary Story of the Dancing Plague of 1518'",
+      "Strasbourg Belediye Arşivleri (1518 kayıtları)"
+    ],
+    "first_video_id": "run_20260925_181552",
+    "created_at": "2026-09-25T18:15:52",
+    "status": "used"
+  }
+]
