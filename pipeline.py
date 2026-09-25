@@ -115,13 +115,24 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} is not an object")
         narration = str(scene.get("narration", "")).strip()
         image_prompt = str(scene.get("image_prompt", "")).strip()
+        visual_intent = scene.get("visual_intent")
         if not narration or not image_prompt:
             raise ValueError(f"Scene {i} is missing narration or image_prompt")
+        if not isinstance(visual_intent, dict):
+            raise ValueError(f"Scene {i} is missing visual_intent")
+        required_intent = ["primary_subject", "visual_type", "must_show", "avoid", "search_queries"]
+        missing_intent = [key for key in required_intent if not visual_intent.get(key)]
+        if missing_intent:
+            raise ValueError(f"Scene {i} visual_intent is incomplete: {missing_intent}")
+        if not isinstance(visual_intent.get("must_show"), list) or not isinstance(visual_intent.get("avoid"), list):
+            raise ValueError(f"Scene {i} visual_intent must_show/avoid must be lists")
+        if not isinstance(visual_intent.get("search_queries"), list):
+            raise ValueError(f"Scene {i} visual_intent search_queries must be a list")
         word_count = len(narration.split())
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
         total_words += word_count
-        cleaned.append({"narration": narration, "image_prompt": image_prompt})
+        cleaned.append({"narration": narration, "image_prompt": image_prompt, "visual_intent": visual_intent})
 
     # Keep Shorts comfortably short while allowing natural variation.
     if total_words < MIN_TOTAL_WORDS or total_words > MAX_TOTAL_WORDS:
@@ -427,11 +438,27 @@ Kurallar:
 9. Yedi sahnede farklı görsel arketipler kullan: hook/close-up, wide establishing, artifact/document, map/diagram, crowd/action, location/detail, archival aftermath.
 10. Görsel promptlarda "same woman", "same man", "same character" veya karakter sürekliliği isteme. Yalnızca olayın gerçek kişilerinin görsel olarak zorunlu olduğu sahnede kişi göster.
 11. Modern stok estetiği yerine döneme uygun tarihsel/arkeolojik belgesel estetiğini tercih et.
+12. Her sahne için visual_intent üret. visual_intent, narration'ın görsel karşılığını açıkça tanımlamalı.
+13. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
+14. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
+15. search_queries, doğrudan sahnenin konusu için 2-4 spesifik tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
+16. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
+17. Gerçek görsel bulunamayacaksa image_prompt, aynı görsel niyetini birebir canlandıran tarihsel rekonstrüksiyon olmalı.
 
 Şema:
 {{
   "scenes": [
-    {{"narration": "...", "image_prompt": "..."}}
+    {{
+      "narration": "...",
+      "image_prompt": "...",
+      "visual_intent": {{
+        "primary_subject": "...",
+        "visual_type": "historical_photo/artifact/document/map/person/location/crowd/action/reconstruction",
+        "must_show": ["somut unsur 1", "somut unsur 2"],
+        "avoid": ["ilgisiz görsel 1", "ilgisiz görsel 2"],
+        "search_queries": ["spesifik arama 1", "spesifik arama 2"]
+      }}
+    }}
   ]
 }}
 """
@@ -1433,13 +1460,14 @@ def run(auto_publish: bool | None = None):
     visual_sources = []
     used_visual_urls: list[str] = []
     for i, scene in enumerate(scenes, 1):
-        # Merge prompt words to use as search terms
-        terms = [topic_compat["title"], scene.get("narration", "")[:140], *[w for w in scene["image_prompt"].split() if len(w) > 4][:3]]
+        visual_intent = scene.get("visual_intent", {})
+        terms = list(visual_intent.get("search_queries", []))
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
             event_title=topic_compat["title"],
             excluded_urls=used_visual_urls,
+            visual_intent=visual_intent,
         )
         visual_sources.append(v_source)
         resolved_url = v_source.get("image_url")
@@ -1480,7 +1508,17 @@ def run(auto_publish: bool | None = None):
                 )
 
         if not image_downloaded:
-            download_ai_image(scene["image_prompt"], image_path)
+            intent = scene.get("visual_intent", {})
+            ai_prompt = (
+                f"{scene['image_prompt']} "
+                f"Primary subject: {intent.get('primary_subject', '')}. "
+                f"Must visibly include: {', '.join(intent.get('must_show', []))}. "
+                f"Avoid: {', '.join(intent.get('avoid', []))}. "
+                f"Historical event context: {topic_compat['title']}. "
+                "The image must depict the specific narrated subject, not a generic landscape or stock scene. "
+                "No modern objects, no text, no watermark, documentary historical reconstruction."
+            )
+            download_ai_image(ai_prompt, image_path)
             
         motion_type = MOTION_TYPES[(i - 1) % len(MOTION_TYPES)]
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
@@ -1506,6 +1544,7 @@ def run(auto_publish: bool | None = None):
         memory=memory,
     )
     selected_audio_track = ""
+    audio_mix_mode = "not_mixed"
     if music_path:
         try:
             bg_music = AudioFileClip(str(music_path))
@@ -1527,34 +1566,28 @@ def run(auto_publish: bool | None = None):
                 pause_volume=0.24,
             )
             
-            # True ducking applied to audio clip
-            def fl_volume(gf, t):
-                frame = gf(t)
-                vol = ducking_fn(t)
-                # handle stereo / mono frame shapes
-                if isinstance(vol, (float, int)):
-                    return vol * frame
-                else:
-                    return vol * frame
-                    
-            # Moviepy 1.0.3 volume transformation
-            bg_music = bg_music.fl(fl_volume, keep_duration=True)
-            
+            # MoviePy 2.x: AudioClip.transform replaces the removed .fl API.
+            def ducked_frame(get_frame, t):
+                frame = get_frame(t)
+                volume = float(ducking_fn(t))
+                return frame * volume
+
+            bg_music = bg_music.transform(ducked_frame, keep_duration=True)
             bg_music = bg_music.with_effects([
                 AudioFadeIn(fade_in_len),
                 AudioFadeOut(fade_out_len),
             ])
             final_audio = CompositeAudioClip([voice_audio, bg_music])
+            audio_mix_mode = "voice_plus_background_ducked"
             log.info(
-                "Audio mix: narration + %s with dynamic ducking (fade_in=%.1fs, fade_out=%.1fs)",
+                "Audio mix OK: narration + %s with dynamic ducking (fade_in=%.1fs, fade_out=%.1fs)",
                 selected_audio_track, fade_in_len, fade_out_len,
             )
         except Exception as exc:
-            log.warning("Music mixing failed; using voice only: %s", exc)
-            final_audio = voice_audio
+            log.error("CRITICAL: Background music mixing failed: %s", exc)
+            raise RuntimeError(f"Background music mixing failed: {exc}") from exc
     else:
-        log.warning("No background music available — proceeding with narration only")
-        final_audio = voice_audio
+        raise RuntimeError("Background music is mandatory but no music track was available.")
 
     final_video = video.with_audio(final_audio)
     output_path = run_dir / "final_short.mp4"
@@ -1571,6 +1604,10 @@ def run(auto_publish: bool | None = None):
 
     log.info("Performing final video quality checks")
     video_qa = validate_video_quality(output_path)
+    if audio_mix_mode != "voice_plus_background_ducked":
+        raise RuntimeError("Final audio QA failed: background music was not mixed into the video.")
+    video_qa["audio_mix_mode"] = audio_mix_mode
+    video_qa["background_music"] = selected_audio_track
     log.info("Video QA passed: %s", video_qa)
 
     # ── Phase 4: Save Event Identity ──
@@ -1598,7 +1635,9 @@ def run(auto_publish: bool | None = None):
         "qa": video_qa,
         "content_analysis": candidate_analysis,
         "audio_track": selected_audio_track,
+        "audio_mix_mode": audio_mix_mode,
         "visual_sources": visual_sources,
+        "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_reuse_warnings": visual_warnings,
     }
     (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
