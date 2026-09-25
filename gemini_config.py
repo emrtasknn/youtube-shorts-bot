@@ -11,8 +11,10 @@ except ImportError:
 log = logging.getLogger("shorts-bot")
 
 DEFAULT_CANDIDATE_MODELS = [
-    "gemini-3.6-flash",
+    # The free-tier 3.6 Flash quota is easy to exhaust. Keep the lightweight
+    # model first so a single run does not waste time on guaranteed 429s.
     "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
 ]
 
 def get_candidate_models() -> list[str]:
