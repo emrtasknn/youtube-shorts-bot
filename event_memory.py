@@ -938,6 +938,51 @@ def _visual_tokens(text: str) -> set[str]:
     }
 
 
+def _visual_intent_match_score(
+    title: str,
+    description: str,
+    query: str,
+    event_title: str = "",
+    visual_intent: Optional[dict] = None,
+) -> tuple[float, dict]:
+    """Score an asset against the actual scene intent, not only the search query."""
+    intent = visual_intent or {}
+    primary = str(intent.get("primary_subject", ""))
+    must_show = [str(x) for x in intent.get("must_show", []) if str(x).strip()]
+    visual_type = str(intent.get("visual_type", "")).lower()
+    haystack = f"{title} {description}"
+    hay_tokens = _visual_tokens(haystack)
+    primary_tokens = _visual_tokens(primary)
+    must_tokens = _visual_tokens(" ".join(must_show))
+    query_score = _visual_relevance(query, title, description)
+    event_tokens = _visual_tokens(event_title)
+    event_overlap = len(event_tokens & hay_tokens) / max(len(event_tokens), 1)
+    primary_hits = len(primary_tokens & hay_tokens)
+    must_hits = len(must_tokens & hay_tokens)
+    primary_coverage = primary_hits / max(len(primary_tokens), 1)
+    must_coverage = must_hits / max(len(must_tokens), 1)
+
+    if visual_type == "map":
+        intent_pass = primary_hits >= 1 and (must_hits >= 1 or query_score >= 0.55)
+    elif visual_type in ("document", "artifact"):
+        intent_pass = primary_hits >= 1 and (must_hits >= 1 or query_score >= 0.65)
+    else:
+        intent_pass = primary_coverage >= 0.34 and must_coverage >= 0.20
+
+    combined = max(query_score, 0.60 * primary_coverage + 0.40 * must_coverage)
+    if event_overlap >= 0.20:
+        combined = min(1.0, combined + 0.08)
+    return round(combined, 3), {
+        "primary_hits": primary_hits,
+        "must_hits": must_hits,
+        "primary_coverage": round(primary_coverage, 3),
+        "must_coverage": round(must_coverage, 3),
+        "query_score": query_score,
+        "event_overlap": round(event_overlap, 3),
+        "intent_pass": intent_pass,
+    }
+
+
 def _visual_relevance(query: str, title: str, description: str = "") -> float:
     """Deterministic relevance score; weakly related images are rejected."""
     q = _visual_tokens(query)
@@ -954,7 +999,8 @@ def search_wikimedia_image(
     search_term: str,
     event_title: str = "",
     excluded_urls: Optional[list[str]] = None,
-    min_relevance: float = 0.55,
+    min_relevance: float = 0.65,
+    visual_intent: Optional[dict] = None,
 ) -> Optional[dict]:
     """Search Wikimedia Commons and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -975,9 +1021,14 @@ def search_wikimedia_image(
             title = item.get("title", "")
             snippet = re.sub(r"<[^>]+>", " ", item.get("snippet", ""))
             score = _visual_relevance(search_term, title, snippet)
-            ranked.append((score, item))
+            intent_score, intent_meta = _visual_intent_match_score(
+                title, snippet, search_term, event_title, visual_intent
+            )
+            if visual_intent and not intent_meta.get("intent_pass"):
+                continue
+            ranked.append((max(score, intent_score), item, intent_meta))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for score, item in ranked[:5]:
+        for score, item, intent_meta in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1011,6 +1062,7 @@ def search_wikimedia_image(
                     "image_url": url, "title": file_title,
                     "license": meta.get("LicenseShortName", {}).get("value", ""),
                     "attribution": author, "relevance_score": score, "search_query": search_term,
+                    "intent_match": intent_meta,
                 }
     except Exception as exc:
         log.debug("Wikimedia search failed for %r: %s", search_term, exc)
@@ -1018,7 +1070,11 @@ def search_wikimedia_image(
 
 
 def search_openverse_image(
-    search_terms: list[str], excluded_urls: Optional[list[str]] = None, min_relevance: float = 0.55
+    search_terms: list[str],
+    excluded_urls: Optional[list[str]] = None,
+    min_relevance: float = 0.65,
+    event_title: str = "",
+    visual_intent: Optional[dict] = None,
 ) -> Optional[dict]:
     """Find an openly licensed image and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1042,12 +1098,18 @@ def search_openverse_image(
                 haystack = " ".join([str(item.get("title", "")), str(item.get("description", "")),
                     " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", []))])
                 score = _visual_relevance(query, haystack)
+                intent_score, intent_meta = _visual_intent_match_score(
+                    str(item.get("title", "")), haystack, query, event_title, visual_intent
+                )
+                if visual_intent and not intent_meta.get("intent_pass"):
+                    continue
+                score = max(score, intent_score)
                 if score < min_relevance:
                     continue
                 if best is None or score > best[0]:
-                    best = (score, item, query)
+                    best = (score, item, query, intent_meta)
         if best:
-            score, item, query = best
+            score, item, query, intent_meta = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
@@ -1056,6 +1118,7 @@ def search_openverse_image(
                 "attribution": item.get("attribution") or item.get("creator", ""),
                 "creator": item.get("creator", ""), "provider": item.get("provider", ""),
                 "relevance_score": round(score, 3), "search_query": query,
+                "intent_match": intent_meta,
             }
     except Exception as exc:
         log.debug("Openverse search failed: %s", exc)
@@ -1067,11 +1130,12 @@ def build_visual_search_queries(scene_description: str, visual_intent: dict, eve
     explicit = visual_intent.get("search_queries", []) if isinstance(visual_intent, dict) else []
     must_show = visual_intent.get("must_show", []) if isinstance(visual_intent, dict) else []
     primary = visual_intent.get("primary_subject", "") if isinstance(visual_intent, dict) else ""
-    queries = [str(q).strip() for q in explicit if str(q).strip()]
+    queries = []
     if primary:
         queries.append(f"{event_title} {primary}".strip())
     if must_show:
         queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:3])).strip())
+    queries.extend(str(q).strip() for q in explicit if str(q).strip())
     if not queries:
         queries.append(f"{event_title} {scene_description[:100]}".strip())
     seen = set()
@@ -1092,16 +1156,26 @@ def resolve_visual_source(
     intent = visual_intent or {}
     queries = build_visual_search_queries(scene_description, intent, event_title)
     for query in queries:
-        result = search_wikimedia_image(query, event_title, list(excluded), min_relevance=0.55)
+        result = search_wikimedia_image(
+            query, event_title, list(excluded), min_relevance=0.65, visual_intent=intent
+        )
         if result:
             log.info("VISUAL: %s → Wikimedia %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
             return result
-    result = search_openverse_image(queries, list(excluded), min_relevance=0.55)
+    result = search_openverse_image(
+        queries, list(excluded), min_relevance=0.65,
+        event_title=event_title, visual_intent=intent
+    )
     if result:
         log.info("VISUAL: %s → Openverse %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
         return result
     log.info("VISUAL: %s → AI reconstruction; no relevant real visual found", scene_description[:40])
-    return {"source_type": "ai_reconstruction", "note": "No sufficiently relevant real visual found.", "search_queries": queries, "relevance_threshold": 0.55}
+    return {
+        "source_type": "ai_reconstruction",
+        "note": "No sufficiently relevant real visual found.",
+        "search_queries": queries,
+        "relevance_threshold": 0.65,
+    }
 
 # ---------------------------------------------------------------------------
 # Phase 7 — Full Discovery Pipeline Entry Point
@@ -1198,60 +1272,3 @@ def run_discovery_pipeline(
 
     # Research the selected event
     dossier = research_historical_event(selected)
-    log.info(
-        "Research confidence: %s",
-        dossier.get("research_confidence", "unknown"),
-    )
-
-    reservation = reserve_event(selected, dossier, event_memory_path=em_path)
-    selected["_reserved_event_id"] = reservation["event_id"]
-    return selected, dossier
-
-
-# ---------------------------------------------------------------------------
-# Expose summary for pipeline.py use
-# ---------------------------------------------------------------------------
-
-
-def get_used_event_titles(event_memory_path: Optional[Path] = None) -> list[str]:
-    """Return list of canonical titles of all used events."""
-    events = load_event_memory(event_memory_path)
-    return [e.get("canonical_title", "") for e in events]
-
-
-def mark_event_as_used(
-    candidate: dict,
-    research_dossier: dict,
-    video_id: str = "",
-    event_memory_path: Optional[Path] = None,
-) -> dict:
-    """Finalize the previously reserved event after successful generation."""
-    target = event_memory_path or EVENT_MEMORY_FILE
-    events = load_event_memory(target)
-    reserved_id = candidate.get("_reserved_event_id", "")
-    for event in events:
-        if reserved_id and event.get("event_id") == reserved_id:
-            event["status"] = "used"
-            event["first_video_id"] = video_id
-            event["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-            save_event_to_memory(event, target)
-            log.info("EVENT FINALIZED: '%s' (%s)", event.get("canonical_title", ""), event.get("event_id", ""))
-            return event
-
-    # Safety fallback for old/local runs that did not reserve.
-    record = build_event_record(
-        canonical_title=candidate.get("canonical_title", ""),
-        aliases=candidate.get("aliases", []),
-        date=candidate.get("date", ""),
-        date_normalized=candidate.get("date_normalized", ""),
-        location=candidate.get("location", ""),
-        entities=candidate.get("entities", []),
-        event_summary=candidate.get("event_summary", ""),
-        core_facts=research_dossier.get("verified_facts", candidate.get("known_facts", [])),
-        claims=research_dossier.get("disputed_claims", []),
-        sources=research_dossier.get("sources", []),
-        first_video_id=video_id,
-        status="used",
-    )
-    save_event_to_memory(record, target)
-    return record
