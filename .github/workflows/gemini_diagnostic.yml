@@ -37,41 +37,36 @@ jobs:
                   print("GEMINI_API_KEY is missing from environment.")
                   sys.exit(1)
                   
-              print("SDK available. Fetching models...")
-              try:
-                  client = genai.Client(api_key=api_key)
-                  models = client.models.list()
-                  
-                  available = []
-                  generate_candidates = []
-                  
-                  for m in models:
-                      name = getattr(m, "name", "unknown")
-                      display_name = getattr(m, "display_name", "unknown")
-                      supported_methods = getattr(m, "supported_generation_methods", [])
-                      
-                      model_info = {
-                          "name": name,
-                          "display_name": display_name,
-                          "supported_methods": supported_methods
-                      }
-                      available.append(model_info)
-                      
-                      if "generateContent" in supported_methods:
-                          generate_candidates.append(model_info)
-                          
-                  print("\nAVAILABLE MODELS")
-                  for m in available:
-                      print(f"- model: {m['name']}")
-                      print(f"  display_name: {m['display_name']}")
-                      print(f"  supported_methods: {m['supported_methods']}")
-                      
-                  print("\nGENERATE_CONTENT CANDIDATES")
-                  for m in generate_candidates:
-                      print(f"- {m['name']} ({m['display_name']})")
-                      
-              except Exception as e:
-                  print(f"\nAPI Error: {e}")
+              print("SDK available. Starting generateContent tests...\n")
+              client = genai.Client(api_key=api_key)
+              
+              models_to_test = [
+                  "gemini-2.5-flash",
+                  "models/gemini-2.5-flash",
+                  "gemini-flash-latest",
+                  "models/gemini-flash-latest",
+                  "gemini-2.5-pro",
+                  "models/gemini-2.5-pro"
+              ]
+              
+              for model_name in models_to_test:
+                  print(f"MODEL: {model_name}")
+                  try:
+                      response = client.models.generate_content(
+                          model=model_name,
+                          contents="Reply with exactly: GEMINI_TEST_OK"
+                      )
+                      if response and response.text:
+                          if "GEMINI_TEST_OK" in response.text:
+                              print("RESULT: SUCCESS")
+                          else:
+                              print(f"RESULT: SUCCESS_BUT_UNEXPECTED_RESPONSE ({response.text.strip()})")
+                      else:
+                          print("RESULT: FAIL_NO_TEXT")
+                  except Exception as e:
+                      print(f"RESULT: FAIL")
+                      print(f"ERROR: {e}")
+                  print("-" * 40)
                   
           if __name__ == "__main__":
               main()
