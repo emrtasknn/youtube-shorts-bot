@@ -60,6 +60,54 @@ ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
 REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
 
+# V1.4 narration profiles. Edge TTS is retained for production stability;
+# diversity comes from narrator identity plus controlled delivery profiles.
+VOICE_PROFILES = {
+    "documentary_male": {"voice": "tr-TR-AhmetNeural", "rate": "+15%", "pitch": "+0Hz"},
+    "mystery_female": {"voice": "tr-TR-EmelNeural", "rate": "+8%", "pitch": "+0Hz"},
+    "dramatic_male": {"voice": "tr-TR-AhmetNeural", "rate": "+10%", "pitch": "-2Hz"},
+    "energetic_female": {"voice": "tr-TR-EmelNeural", "rate": "+18%", "pitch": "+1Hz"},
+}
+VOICE_KEYWORDS = {
+    "mystery": ["gizem", "kayıp", "esrar", "açıklanamadı", "gizemli", "bilinmiyor", "yok oldu", "kaybol"],
+    "ancient": ["antik", "taş çağı", "roma", "mısır", "mezopotamya", "bin yıl"],
+    "war": ["savaş", "ordu", "asker", "silah", "cephe", "muharebe", "işgal"],
+    "disaster": ["felaket", "patlama", "deprem", "sel", "yangın", "çöküş"],
+    "conflict": ["çatışma", "isyan", "ayaklanma", "saldırı", "kuşatma"],
+    "tragedy": ["ölüm", "trajedi", "öldü", "can kaybı", "facıa"],
+    "absurd": ["absürt", "inanılmaz", "tuhaf", "garip", "saçma", "kuş", "hayvan"],
+    "surprising": ["şaşırtıcı", "inanılmaz", "beklenmedik", "şok"],
+}
+
+def choose_voice_profile(candidate: dict, research_dossier: dict) -> tuple[str, dict]:
+    """Choose a narrator persona from the story atmosphere, deterministically."""
+    text = " ".join([
+        str(candidate.get("canonical_title", "")),
+        str(candidate.get("event_summary", "")),
+        str(candidate.get("why_interesting", "")),
+        str(research_dossier.get("story_hook", "")),
+        " ".join(str(x) for x in research_dossier.get("verified_facts", [])),
+    ]).lower()
+    scores = {name: 0 for name in VOICE_PROFILES}
+    for atmosphere, keywords in VOICE_KEYWORDS.items():
+        hits = sum(1 for keyword in keywords if keyword in text)
+        if atmosphere in {"mystery", "ancient"}:
+            scores["mystery_female"] += hits
+        elif atmosphere in {"war", "disaster", "conflict", "tragedy"}:
+            scores["dramatic_male"] += hits
+        elif atmosphere in {"absurd", "surprising"}:
+            scores["energetic_female"] += hits
+    event_key = str(candidate.get("event_id") or candidate.get("canonical_title", ""))
+    tie = sum(ord(ch) for ch in event_key) % len(VOICE_PROFILES)
+    if max(scores.values()) == 0:
+        selected = list(VOICE_PROFILES)[tie]
+    else:
+        best_score = max(scores.values())
+        candidates = [name for name, score in scores.items() if score == best_score]
+        selected = candidates[tie % len(candidates)]
+    return selected, VOICE_PROFILES[selected]
+
+
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -134,7 +182,12 @@ def validate_script(data: dict) -> list[dict]:
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
         total_words += word_count
-        cleaned.append({"narration": narration, "image_prompt": image_prompt, "visual_intent": visual_intent})
+        cleaned.append({
+            "narration": narration,
+            "image_prompt": image_prompt,
+            "visual_intent": visual_intent,
+            "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
+        })
 
     # Keep Shorts comfortably short while allowing natural variation.
     if total_words < MIN_TOTAL_WORDS or total_words > MAX_TOTAL_WORDS:
@@ -367,14 +420,34 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
         score -= 20
         issues.append("Scene 1 hook is too passive/date-led or too long; prefer immediate surprise, scale, or question")
 
-    # 2. Seamless loop check in Scene 7
+    # 2. Natural ending + loop strategy
     s7 = scenes[-1].get("narration", "").strip()
-    loop_indicators = [";", ":", "aslında", "çünkü", "işte bu yüzden", "başlıyor", "bunun cevabı", "ve sır", "sebebi"]
-    if not any(ind in s7.lower() for ind in loop_indicators) and not s7.endswith((";", ":", "...")):
-        score -= 15
-        issues.append("Scene 7 lacks seamless loop connector")
+    ending_strategy = scenes[-1].get("ending_strategy", "").lower()
+    if s7.endswith((";", ":")) or any(marker in s7.lower() for marker in [
+        "aslında;", "tam da burası:", "cevabı:", "başladığı yer:"
+    ]):
+        score -= 20
+        issues.append("Scene 7 is linguistically unfinished; loop must never override a natural ending")
+    if ending_strategy not in {"semantic", "visual", "audio", "clean"}:
+        score -= 5
+        issues.append("Scene 7 has no valid ending strategy")
 
-    # 3. Word count balance
+    # 3. Retention architecture
+    normalized_scenes = [s.get("narration", "").lower() for s in scenes]
+    transition_words = ["ama", "fakat", "ancak", "çünkü", "oysa", "derken", "sonra", "üstelik", "asıl"]
+    transition_count = sum(
+        any(scene.startswith(word + " ") or (" " + word + " ") in scene for word in transition_words)
+        for scene in normalized_scenes[1:6]
+    )
+    unique_starts = len(set(scene.split()[0] for scene in normalized_scenes if scene.split()))
+    if transition_count < 2:
+        score -= 8
+        issues.append("Low escalation/transition density across middle scenes")
+    if unique_starts < 5:
+        score -= 5
+        issues.append("Scene openings are too repetitive")
+
+    # 4. Word count balance
     word_counts = [len(s.get("narration", "").split()) for s in scenes]
     total_words = sum(word_counts)
     if total_words < MIN_TOTAL_WORDS or total_words > MAX_TOTAL_WORDS:
@@ -424,11 +497,30 @@ AMAÇ: 7 sahnenin toplamı kesinlikle 72 kelimeyi geçmesin. Her sahne 6-12 keli
 Öncelik kısa ve doğal Türkçe cümlelerdir. 30-38 saniyelik, hızlı ve yoğun bir Shorts üret.
 
 Sahne Hikaye Şablonu:
-- 1. Sahne: GÜÇLÜ KANCA - 6-10 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
-- 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları (DOĞRULANMIŞ GERÇEKLERİ KULLAN).
-- 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut veya spekülasyonlar.
-- 6. Sahne: Yankı - Bu olayın tarihte bıraktığı silinmez iz.
-- 7. Sahne: Kusursuz Döngü Köprüsü (Seamless Loop) - Asla veda veya bitiş bildirmemeli! Cümle öyle bir bağlaçla bitmeli ki, video başa sarınca 1. sahneye pürüzsüzce bağlansın (örn: "...ve bu sırrın cevabı aslında;", "...gizemin başladığı yer tam da burası:").
+- 1. Sahne: COLD OPEN - 6-10 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
+- 2. Sahne: CONTEXT - İzleyicinin olayı anlaması için gereken minimum bilgi.
+- 3. Sahne: ESCALATION - Yeni bir bilgi, sayı, tehdit veya çelişki getir. Önceki sahneyi farklı kelimelerle tekrar etme.
+- 4. Sahne: UNEXPECTED FACT - Hikâyenin yönünü değiştiren veya merakı artıran yeni gerçek.
+- 5. Sahne: STAKES / CONSEQUENCE - "Peki bunun sonucu ne oldu?" sorusunu cevapla.
+- 6. Sahne: PAYOFF - En güçlü doğrulanmış bilgi veya olayın asıl çarpıcı sonucu. Ana payoff'u ilk cümlede tüketme.
+- 7. Sahne: NATURAL CLOSURE + LOOP - Cümle tek başına video burada bitse bile tamamen doğal ve tamamlanmış olmalı. ASLA noktalı virgül, iki nokta, yarım cümle veya "ve..." ile bitirme.
+
+RETENTION KURALLARI:
+- Her sahne izleyiciye yeni bir bilgi, soru, sonuç veya kontrast vermeli.
+- İlk 2 saniyede bağlamı değil merakı sat; tarihi gerekiyorsa sonraki sahnelere bırak.
+- En güçlü payoff'u 6. sahne civarına taşı.
+- Orta sahnelerde en az 2 doğal escalation/contrast geçişi kullan; sürekli "ama işler daha da..." kalıbını tekrarlama.
+- Aynı bilgiyi farklı kelimelerle tekrarlama.
+- Son cümle ilk sahnenin fikrine doğal biçimde geri dönebiliyorsa SEMANTIC loop seç.
+- Semantic loop doğal değilse VISUAL loop seç; son cümle yine tamamen doğal kalmalı.
+- Visual loop da doğal değilse AUDIO loop veya CLEAN ending seç. Kötü bir dilsel loop üretmek kesinlikle yasak.
+
+SAHNE 7 ENDING STRATEGY:
+- "ending_strategy" yalnızca "semantic", "visual", "audio" veya "clean" olabilir.
+- semantic: Son cümle hook'un fikrini doğal olarak yankılar ve bağımsız bir kapanış cümlesidir.
+- visual: Son cümle doğal kapanır; sahne 7 görseli sahne 1 ile eşleşebilir.
+- audio: Son cümle doğal kapanır; atmosfer/müzik döngüyü taşır.
+- clean: Loop yapılmaz; yalnızca doğal ve güçlü kapanış yapılır.
 
 Kurallar:
 1. Sadece araştırma dosyasındaki bilgileri kullan. Kendi genel bilgilerinle yeni iddialar uydurma.
@@ -461,7 +553,8 @@ Kurallar:
         "must_show": ["somut unsur 1", "somut unsur 2"],
         "avoid": ["ilgisiz görsel 1", "ilgisiz görsel 2"],
         "search_queries": ["spesifik arama 1", "spesifik arama 2"]
-      }}
+      }},
+      "ending_strategy": "semantic"
     }}
   ]
 }}
@@ -523,11 +616,21 @@ def estimate_word_timestamps(text: str, total_duration: float) -> list[dict]:
     return words
 
 
-async def create_voice_with_timestamps(text: str, audio_path: Path) -> list[dict]:
+async def create_voice_with_timestamps(
+    text: str,
+    audio_path: Path,
+    voice_profile_name: str = "documentary_male",
+) -> list[dict]:
+    profile = VOICE_PROFILES.get(voice_profile_name, VOICE_PROFILES["documentary_male"])
+    log.info(
+        "TTS voice profile: %s | voice=%s | rate=%s | pitch=%s",
+        voice_profile_name, profile["voice"], profile["rate"], profile["pitch"],
+    )
     communicate = edge_tts.Communicate(
         text,
-        voice="tr-TR-AhmetNeural",
-        rate="+15%",
+        voice=profile["voice"],
+        rate=profile["rate"],
+        pitch=profile["pitch"],
         boundary="WordBoundary",
     )
     words = []
@@ -1524,9 +1627,17 @@ def run(auto_publish: bool | None = None):
 
     log.info("4/8 Generating voice and word timestamps")
     voice_path = run_dir / "voice.mp3"
+    voice_profile_name, voice_profile = choose_voice_profile(candidate, research_dossier)
+    candidate["_voice_profile"] = voice_profile_name
+    log.info(
+        "V1.4 narrator selected: %s (%s, rate=%s, pitch=%s)",
+        voice_profile_name, voice_profile["voice"], voice_profile["rate"], voice_profile["pitch"],
+    )
 
     for duration_attempt in range(1, 4):
-        words_data = asyncio.run(create_voice_with_timestamps(full_text, voice_path))
+        words_data = asyncio.run(
+            create_voice_with_timestamps(full_text, voice_path, voice_profile_name)
+        )
         voice_audio = AudioFileClip(str(voice_path))
         total_duration = voice_audio.duration
         if 28.0 <= total_duration <= 40.0:
@@ -1576,6 +1687,14 @@ def run(auto_publish: bool | None = None):
 
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
+
+        # V1.4 visual loop: natural narration, but return to the opening visual.
+        if i == SCENE_COUNT and scene.get("ending_strategy") == "visual":
+            first_image = run_dir / "scene_01.jpg"
+            if first_image.exists():
+                image_path.write_bytes(first_image.read_bytes())
+                log.info("Scene %d uses Scene 1 visual for a clean visual loop.", i)
+                continue
         
         # Download historical/web images or fallback to AI
         image_downloaded = False
@@ -1747,6 +1866,8 @@ def run(auto_publish: bool | None = None):
         full_text=full_text,
     )
     content_entry["audio_track"] = selected_audio_track
+    content_entry["voice_profile"] = voice_profile_name
+    content_entry["ending_strategy"] = scenes[-1].get("ending_strategy", "")
     content_entry["event_id"] = event_record["event_id"]
     content_memory_module.save_content_entry(content_entry)
 
@@ -1761,6 +1882,12 @@ def run(auto_publish: bool | None = None):
         "content_analysis": candidate_analysis,
         "audio_track": selected_audio_track,
         "audio_mix_mode": audio_mix_mode,
+        "voice_profile": {
+            "name": voice_profile_name,
+            "voice": voice_profile["voice"],
+            "rate": voice_profile["rate"],
+            "pitch": voice_profile["pitch"],
+        },
         "visual_sources": visual_sources,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_qa": visual_qa,
