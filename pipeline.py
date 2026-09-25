@@ -1689,16 +1689,18 @@ def run(auto_publish: bool | None = None):
         image_path = run_dir / f"scene_{i:02d}.jpg"
 
         # V1.4 visual loop: natural narration, but return to the opening visual.
+        image_downloaded = False
+        visual_loop_reused = False
         if i == SCENE_COUNT and scene.get("ending_strategy") == "visual":
             first_image = run_dir / "scene_01.jpg"
             if first_image.exists():
                 image_path.write_bytes(first_image.read_bytes())
+                image_downloaded = True
+                visual_loop_reused = True
                 log.info("Scene %d uses Scene 1 visual for a clean visual loop.", i)
-                continue
-        
+
         # Download historical/web images or fallback to AI
-        image_downloaded = False
-        if v_source.get("source_type") in ("wikimedia", "openverse"):
+        if not visual_loop_reused and v_source.get("source_type") in ("wikimedia", "openverse"):
             try:
                 img_url = v_source.get("image_url")
                 resp = requests.get(
