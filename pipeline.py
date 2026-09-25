@@ -46,11 +46,11 @@ VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 FPS = 30
 SCENE_COUNT = 7
-TARGET_DURATION = int(os.getenv("TARGET_DURATION", "25"))
-MIN_DURATION = int(os.getenv("MIN_DURATION", "15"))
-MAX_DURATION = int(os.getenv("MAX_DURATION", "45"))
-MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "30"))
-MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "100"))
+TARGET_DURATION = int(os.getenv("TARGET_DURATION", "34"))
+MIN_DURATION = int(os.getenv("MIN_DURATION", "28"))
+MAX_DURATION = int(os.getenv("MAX_DURATION", "40"))
+MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "55"))
+MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "78"))
 
 # The image provider's mark is kept out of the final frame by cropping the
 # lower part of the generated image. This is intentionally a fixed crop,
@@ -118,7 +118,7 @@ def validate_script(data: dict) -> list[dict]:
         if not narration or not image_prompt:
             raise ValueError(f"Scene {i} is missing narration or image_prompt")
         word_count = len(narration.split())
-        if word_count < 3 or word_count > 35:
+        if word_count < 5 or word_count > 16:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words")
         total_words += word_count
         cleaned.append({"narration": narration, "image_prompt": image_prompt})
@@ -348,9 +348,9 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     # 1. Hook check in Scene 1
     s1 = scenes[0].get("narration", "")
     hook_indicators = ["?", "nasıl", "neden", "kim", "nerede", "hiç", "inanılmaz", "gizem", "şok", "esrarengiz", "fakat"]
-    if not any(ind in s1.lower() for ind in hook_indicators):
-        score -= 15
-        issues.append("Scene 1 lacks a distinct hook question or trigger word")
+    if not any(ind in s1.lower() for ind in hook_indicators) or len(s1.split()) > 14:
+        score -= 20
+        issues.append("Scene 1 lacks a strong short hook (question/trigger, max 14 words)")
 
     # 2. Seamless loop check in Scene 7
     s7 = scenes[-1].get("narration", "").strip()
@@ -404,11 +404,11 @@ EFSANELER / SPEKÜLASYONLAR:
 {myths_str}
 
 Bu olayı tam {SCENE_COUNT} sahnelik, yüksek tempolu bir Shorts senaryosu olarak yaz.
-Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye (toplam 65-90 kelime).
-Doğal ve yüksek tempolu Türkçe anlatım kullan, {SCENE_COUNT} sahne arasında kelimeleri dengeli dağıt.
+Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye; toplam 55-78 kelime.
+Amaç: hızlı, yoğun ve 30-38 saniyelik bir Shorts. 7 sahneye kelimeleri dengeli dağıt.
 
 Sahne Hikaye Şablonu:
-- 1. Sahne: Güçlü Kanca (Hook) - İlk 1-2 saniyede izleyiciyi ekrana bağlayacak şok edici soru veya gerçek.
+- 1. Sahne: GÜÇLÜ KANCA - 8-14 kelime. Başlığı tekrar etme. İlk cümlede şaşırtıcı gerçek, sayı, imkânsız görünen durum veya doğrudan soru kullan.
 - 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları (DOĞRULANMIŞ GERÇEKLERİ KULLAN).
 - 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut veya spekülasyonlar.
 - 6. Sahne: Yankı - Bu olayın tarihte bıraktığı silinmez iz.
@@ -421,6 +421,11 @@ Kurallar:
 4. Kesinlikle kan, aşırı şiddet veya ceset istemiyorum.
 5. Çıktı SADECE geçerli JSON olsun.
 6. Her sahnenin image_prompt'u birbirinden FARKLI görsel kompozisyon, açı ve sahne içermeli.
+7. Aynı insan yüzünü/karakteri sahneden sahneye TEKRARLAMA; isimsiz tekrar eden kahraman oluşturma.
+8. Mümkün olduğunca insan portresi yerine belge, harita, mimari, nesne, kalabalık, manzara ve yakın plan detay kullan.
+9. Yedi sahnede farklı görsel arketipler kullan: hook/close-up, wide establishing, artifact/document, map/diagram, crowd/action, location/detail, archival aftermath.
+10. Görsel promptlarda "same woman", "same man", "same character" veya karakter sürekliliği isteme. Yalnızca olayın gerçek kişilerinin görsel olarak zorunlu olduğu sahnede kişi göster.
+11. Modern stok estetiği yerine döneme uygun tarihsel/arkeolojik belgesel estetiğini tercih et.
 
 Şema:
 {{
@@ -1403,17 +1408,17 @@ def run(auto_publish: bool | None = None):
         words_data = asyncio.run(create_voice_with_timestamps(full_text, voice_path))
         voice_audio = AudioFileClip(str(voice_path))
         total_duration = voice_audio.duration
-        if 15.0 <= total_duration <= 45.0:
-            if total_duration > 35.0:
-                log.warning("Duration %.2fs is between 35-45s (acceptable but on the longer side, ensure QA is passed).", total_duration)
+        if 28.0 <= total_duration <= 40.0:
+            if total_duration > 38.0:
+                log.warning("Duration %.2fs is above the V1.1 target window (28-38s).", total_duration)
             break
 
         log.warning(
-            "TTS duration %.2fs is outside 15-45s; regenerating script (%s/3)",
+            "TTS duration %.2fs is outside 28-40s; regenerating script (%s/3)",
             total_duration, duration_attempt,
         )
         if duration_attempt == 3:
-            raise RuntimeError(f"Could not produce a Short in target duration range: {total_duration:.2f}s")
+            raise RuntimeError(f"Could not produce a V1.1 Short in target duration range: {total_duration:.2f}s")
         scenes = generate_viral_script(candidate, research_dossier)
         full_text = " ".join(scene["narration"] for scene in scenes)
 
@@ -1425,13 +1430,15 @@ def run(auto_publish: bool | None = None):
     
     # Pre-resolve visuals
     visual_sources = []
+    used_visual_urls: list[str] = []
     for i, scene in enumerate(scenes, 1):
         # Merge prompt words to use as search terms
-        terms = [w for w in scene["image_prompt"].split() if len(w) > 4][:2]
+        terms = [topic_compat["title"], scene.get("narration", "")[:140], *[w for w in scene["image_prompt"].split() if len(w) > 4][:3]]
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
             event_title=topic_compat["title"],
+            excluded_urls=used_visual_urls,
         )
         visual_sources.append(v_source)
     
@@ -1440,18 +1447,34 @@ def run(auto_publish: bool | None = None):
         
         # Download historical/web images or fallback to AI
         image_downloaded = False
-        if v_source.get("source_type") == "wikimedia":
+        if v_source.get("source_type") in ("wikimedia", "openverse"):
             try:
                 img_url = v_source.get("image_url")
-                resp = requests.get(img_url, timeout=15)
+                resp = requests.get(
+                    img_url,
+                    timeout=20,
+                    headers={"User-Agent": "YouTubeShortsBot/2.1 (historical-content-bot)"},
+                )
                 resp.raise_for_status()
                 image_path.write_bytes(resp.content)
-                crop_watermark_zone(image_path) # Just scales to 9:16
+                crop_watermark_zone(image_path)
                 image_downloaded = True
-                log.info("Scene %d downloaded from Wikimedia", i)
+                if img_url:
+                    used_visual_urls.append(img_url)
+                log.info(
+                    "Scene %d downloaded real visual: %s (%s)",
+                    i,
+                    v_source.get("title", "untitled"),
+                    v_source.get("source_type"),
+                )
             except Exception as e:
-                log.warning("Wikimedia download failed for scene %d: %s. Falling back to AI.", i, e)
-        
+                log.warning(
+                    "%s download failed for scene %d: %s. Falling back to AI.",
+                    v_source.get("source_type", "real visual"),
+                    i,
+                    e,
+                )
+
         if not image_downloaded:
             download_ai_image(scene["image_prompt"], image_path)
             
@@ -1465,7 +1488,7 @@ def run(auto_publish: bool | None = None):
     subtitles = generate_subtitle_clips(words_data)
     if not subtitles:
         log.warning("Warning: No subtitle clips were generated for this Short!")
-    hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=topic_compat["title"])
+    hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=research_dossier.get("story_hook") or topic_compat["title"])
 
     video = CompositeVideoClip(
         [base_video, hook_badge] + subtitles, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
