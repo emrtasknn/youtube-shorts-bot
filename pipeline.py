@@ -1375,7 +1375,7 @@ def run(auto_publish: bool | None = None):
     discovery_result = event_memory.run_discovery_pipeline()
     if not discovery_result:
         log.error("Pipeline aborting due to discovery failure.")
-        return None
+        raise RuntimeError("Historical event discovery failed; no video was generated.")
 
     candidate, research_dossier = discovery_result
     # Topic dict compatibility for older functions (e.g., telegram / youtube uploader)
