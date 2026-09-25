@@ -934,7 +934,7 @@ def _visual_tokens(text: str) -> set[str]:
     return {
         token.lower()
         for token in re.findall(r"[A-Za-zÀ-ž0-9]+", str(text))
-        if len(token) >= 4 and token.lower() not in stop
+        if len(token) >= 3 and token.lower() not in stop
     }
 
 
