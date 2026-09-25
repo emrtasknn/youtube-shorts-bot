@@ -658,33 +658,109 @@ SADECE JSON:
     return output
 
 
+def _event_tokens(value: str) -> set[str]:
+    """Normalize a title/location/entity string for deterministic matching."""
+    stop = {
+        "the", "of", "and", "on", "in", "from", "de", "da", "do",
+        "bir", "ve", "ile", "olayı", "olay", "case", "event", "incident",
+    }
+    return {
+        token.lower()
+        for token in re.findall(r"[a-zA-ZÀ-ž0-9]+", str(value))
+        if len(token) >= 4 and token.lower() not in stop
+    }
+
+
+def _candidate_matches_used_event(candidate: dict, event: dict) -> tuple[bool, str]:
+    """Conservative local same-event check.
+
+    We reject only when there is strong identity evidence. This avoids spending
+    Gemini requests on a task that can be safely handled from canonical event
+    metadata.
+    """
+    cand_titles = _event_tokens(" ".join([
+        candidate.get("canonical_title", ""),
+        *candidate.get("aliases", []),
+    ]))
+    event_titles = _event_tokens(" ".join([
+        event.get("canonical_title", ""),
+        *event.get("aliases", []),
+    ]))
+
+    title_overlap = len(cand_titles & event_titles)
+    date_c = str(candidate.get("date_normalized") or candidate.get("date") or "").strip().lower()
+    date_e = str(event.get("date_normalized") or event.get("date") or "").strip().lower()
+    loc_c = _event_tokens(candidate.get("location", ""))
+    loc_e = _event_tokens(event.get("location", ""))
+    ent_c = _event_tokens(" ".join(candidate.get("entities", [])))
+    ent_e = _event_tokens(" ".join(event.get("entities", [])))
+
+    same_date = bool(date_c and date_e and date_c == date_e)
+    location_overlap = len(loc_c & loc_e)
+    entity_overlap = len(ent_c & ent_e)
+
+    # Strongest signal: canonical/alias title overlap plus another identity field.
+    if title_overlap >= 1 and (same_date or location_overlap >= 1 or entity_overlap >= 1):
+        return True, "title/alias overlap plus matching date, location, or entity"
+
+    # Same event under a completely different title often retains date + place
+    # and at least one named entity.
+    if same_date and location_overlap >= 1 and entity_overlap >= 1:
+        return True, "matching date + location + entity"
+
+    return False, ""
+
+
 def filter_candidates(candidates: list[dict], event_memory: list[dict]) -> list[dict]:
-    """Keep only NEW_EVENT candidates; reject KNOWN_EVENT and UNCERTAIN safely."""
-    log.info("\n--- EVENT FILTER ---\nDiscovered: %d\nChecking against %d known events + within-batch dedup",
-             len(candidates), len(event_memory))
+    """Deterministically filter same-event candidates without Gemini requests.
 
-    checked = check_event_identity_batch(candidates, event_memory)
+    This is deliberately conservative: only strong identity matches are
+    rejected. Ambiguous candidates remain available for selection/research.
+    """
+    log.info(
+        "\n--- EVENT FILTER ---\nDiscovered: %d\nChecking against %d known events locally",
+        len(candidates), len(event_memory),
+    )
+
     accepted = []
+    seen_batch = []
 
-    for item in checked:
-        candidate = item["candidate"]
-        identity = item["identity"]
+    for candidate in candidates:
         title = candidate.get("canonical_title", "unknown")
-        decision = identity["decision"]
+        matched = False
 
-        if decision == NEW_EVENT:
+        for event in event_memory:
+            is_match, reason = _candidate_matches_used_event(candidate, event)
+            if is_match:
+                log.info(
+                    "REJECTED KNOWN EVENT | Candidate=%s | Matched=%s | Reason=%s",
+                    title, event.get("canonical_title", "N/A"), reason,
+                )
+                matched = True
+                break
+
+        if matched:
+            continue
+
+        for previous in seen_batch:
+            is_match, reason = _candidate_matches_used_event(candidate, previous)
+            if is_match:
+                log.info(
+                    "REJECTED BATCH DUPLICATE | Candidate=%s | Matched=%s | Reason=%s",
+                    title, previous.get("canonical_title", "N/A"), reason,
+                )
+                matched = True
+                break
+
+        if not matched:
             accepted.append(candidate)
+            seen_batch.append(candidate)
             log.info("ACCEPTED: '%s'", title)
-        elif decision == KNOWN_EVENT:
-            log.info("REJECTED EVENT | Candidate=%s | Matched=%s | Reason=%s | Confidence=%.2f",
-                     title, identity.get("matched_event", "N/A"), identity.get("reason", "N/A"),
-                     identity.get("confidence", 0))
-        else:
-            log.warning("UNCERTAIN: '%s' — %s — rejecting as precaution.",
-                        title, identity.get("reason", ""))
 
-    log.info("\n--- EVENT FILTER RESULT ---\n%d discovered\n%d rejected\n%d remaining",
-             len(candidates), len(candidates) - len(accepted), len(accepted))
+    log.info(
+        "\n--- EVENT FILTER RESULT ---\n%d discovered\n%d rejected\n%d remaining",
+        len(candidates), len(candidates) - len(accepted), len(accepted),
+    )
     return accepted
 
 
