@@ -1007,7 +1007,7 @@ def search_wikimedia_image(
                 author = re.sub(r"<[^>]+>", "", meta.get("Artist", {}).get("value", "")).strip()
                 return {
                     "source_type": "wikimedia",
-                    "source_url": f"https://commons.wikimedia.org/wiki/{file_title.replace(" ", "_")}",
+                    "source_url": "https://commons.wikimedia.org/wiki/" + file_title.replace(" ", "_"),
                     "image_url": url, "title": file_title,
                     "license": meta.get("LicenseShortName", {}).get("value", ""),
                     "attribution": author, "relevance_score": score, "search_query": search_term,
@@ -1071,7 +1071,7 @@ def build_visual_search_queries(scene_description: str, visual_intent: dict, eve
     if primary:
         queries.append(f"{event_title} {primary}".strip())
     if must_show:
-        queries.append(f"{event_title} {" ".join(str(x) for x in must_show[:3])}".strip())
+        queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:3])).strip())
     if not queries:
         queries.append(f"{event_title} {scene_description[:100]}".strip())
     seen = set()
@@ -1107,6 +1107,26 @@ def resolve_visual_source(
 # ---------------------------------------------------------------------------
 # Phase 7 — Full Discovery Pipeline Entry Point
 # ---------------------------------------------------------------------------
+
+
+def reserve_event(candidate: dict, research_dossier: dict, event_memory_path: Optional[Path] = None) -> dict:
+    """Persist a reservation immediately after selection/research."""
+    record = build_event_record(
+        canonical_title=candidate.get("canonical_title", ""),
+        aliases=candidate.get("aliases", []),
+        date=candidate.get("date", ""),
+        date_normalized=candidate.get("date_normalized", ""),
+        location=candidate.get("location", ""),
+        entities=candidate.get("entities", []),
+        event_summary=candidate.get("event_summary", ""),
+        core_facts=research_dossier.get("verified_facts", candidate.get("known_facts", [])),
+        claims=research_dossier.get("disputed_claims", []),
+        sources=research_dossier.get("sources", []),
+        status="reserved",
+    )
+    save_event_to_memory(record, event_memory_path)
+    log.info("EVENT RESERVED: '%s' (%s)", record.get("canonical_title", ""), record.get("event_id", ""))
+    return record
 
 
 def run_discovery_pipeline(
@@ -1184,6 +1204,8 @@ def run_discovery_pipeline(
         dossier.get("research_confidence", "unknown"),
     )
 
+    reservation = reserve_event(selected, dossier, event_memory_path=em_path)
+    selected["_reserved_event_id"] = reservation["event_id"]
     return selected, dossier
 
 
@@ -1204,7 +1226,20 @@ def mark_event_as_used(
     video_id: str = "",
     event_memory_path: Optional[Path] = None,
 ) -> dict:
-    """Create and save an event record after successful video generation."""
+    """Finalize the previously reserved event after successful generation."""
+    target = event_memory_path or EVENT_MEMORY_FILE
+    events = load_event_memory(target)
+    reserved_id = candidate.get("_reserved_event_id", "")
+    for event in events:
+        if reserved_id and event.get("event_id") == reserved_id:
+            event["status"] = "used"
+            event["first_video_id"] = video_id
+            event["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            save_event_to_memory(event, target)
+            log.info("EVENT FINALIZED: '%s' (%s)", event.get("canonical_title", ""), event.get("event_id", ""))
+            return event
+
+    # Safety fallback for old/local runs that did not reserve.
     record = build_event_record(
         canonical_title=candidate.get("canonical_title", ""),
         aliases=candidate.get("aliases", []),
@@ -1219,13 +1254,5 @@ def mark_event_as_used(
         first_video_id=video_id,
         status="used",
     )
-    save_event_to_memory(record, event_memory_path)
-    log.info(
-        "\n=== SAVE EVENT MEMORY ===\n"
-        "Event ID: %s\n"
-        "Status: completed\n"
-        "NEVER USE THIS EVENT AGAIN: %s",
-        record["event_id"],
-        record["canonical_title"],
-    )
+    save_event_to_memory(record, target)
     return record
