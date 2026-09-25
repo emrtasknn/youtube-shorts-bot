@@ -1441,6 +1441,9 @@ def run(auto_publish: bool | None = None):
             excluded_urls=used_visual_urls,
         )
         visual_sources.append(v_source)
+        resolved_url = v_source.get("image_url")
+        if resolved_url and resolved_url not in used_visual_urls:
+            used_visual_urls.append(resolved_url)
     
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
