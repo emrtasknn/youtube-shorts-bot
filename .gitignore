@@ -50,7 +50,7 @@ scratch_*.py
 approvals.json
 topics_history.json
 content_memory.json
-client_secrets.json
+client_secrets*.json
 token.json
 
 
