@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
+import gemini_config
 
 log = logging.getLogger("shorts-bot")
 
@@ -90,23 +91,6 @@ def build_content_entry(
 # Content Analysis (extract topic, angle, facts from a script)
 # ---------------------------------------------------------------------------
 
-def _get_genai_client():
-    """Lazily acquire the genai client."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing")
-    return genai.Client(api_key=api_key)
-
-
-def _get_analysis_models() -> list[str]:
-    """Return candidate models for analysis tasks (prefer fast/cheap)."""
-    user_model = os.getenv("GEMINI_MODEL")
-    defaults = ["gemini-1.5-flash", "gemini-1.5-pro"]
-    if user_model:
-        return [user_model] + [m for m in defaults if m != user_model]
-    return defaults
-
-
 def analyze_script_content(scenes: list[dict], topic_title: str = "") -> dict:
     """Use Gemini to extract structured content metadata from a script.
 
@@ -142,29 +126,25 @@ Kurallar:
 - "mood" yukarıdaki seçeneklerden biri olsun.
 """
 
-    client = _get_genai_client()
-    models = _get_analysis_models()
+    res = gemini_config.call_gemini_with_retry(
+        prompt=prompt,
+        label="script analysis",
+        response_mime_type="application/json"
+    )
 
-    for model in models:
+    if res and res.text:
         try:
-            res = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-            if res and res.text:
-                parsed = json.loads(res.text.strip())
-                if isinstance(parsed, dict) and parsed.get("topic"):
-                    log.info(
-                        "Content analysis complete — topic=%s, angle=%s, mood=%s",
-                        parsed.get("topic"),
-                        parsed.get("angle"),
-                        parsed.get("mood"),
-                    )
-                    return parsed
+            parsed = json.loads(res.text.strip())
+            if isinstance(parsed, dict) and parsed.get("topic"):
+                log.info(
+                    "Content analysis complete — topic=%s, angle=%s, mood=%s",
+                    parsed.get("topic"),
+                    parsed.get("angle"),
+                    parsed.get("mood"),
+                )
+                return parsed
         except Exception as exc:
-            log.warning("Content analysis failed with %s: %s", model, exc)
-            time.sleep(1)
+            log.warning("Script analysis JSON parse failed: %s", exc)
 
     # Fallback: return minimal metadata derived from the text
     log.warning("All analysis models failed; using text-derived fallback metadata")

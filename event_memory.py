@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
+import gemini_config
 
 log = logging.getLogger("shorts-bot")
 
@@ -44,43 +45,18 @@ UNCERTAIN = "UNCERTAIN"
 # ---------------------------------------------------------------------------
 
 
-def _get_genai_client():
-    """Lazily acquire the genai client."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is missing")
-    return genai.Client(api_key=api_key)
-
-
-def _get_models() -> list[str]:
-    """Return candidate Gemini models (prefer fast/cheap)."""
-    user_model = os.getenv("GEMINI_MODEL")
-    defaults = ["gemini-1.5-flash", "gemini-1.5-pro"]
-    if user_model:
-        return [user_model] + [m for m in defaults if m != user_model]
-    return defaults
-
-
 def _call_gemini_json(prompt: str, label: str = "gemini call") -> Optional[dict | list]:
-    """Call Gemini with JSON output mode. Returns parsed result or None on all failures."""
-    client = _get_genai_client()
-    models = _get_models()
-    for model in models:
+    """Call Gemini with JSON output mode using centralized retry logic."""
+    res = gemini_config.call_gemini_with_retry(
+        prompt=prompt,
+        label=label,
+        response_mime_type="application/json"
+    )
+    if res and res.text:
         try:
-            res = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-            if res and res.text:
-                return json.loads(res.text.strip())
+            return json.loads(res.text.strip())
         except Exception as exc:
-            log.warning("%s failed with %s: %s", label, model, exc)
-            err_str = str(exc)
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                time.sleep(5)
-            else:
-                time.sleep(1)
+            log.warning("%s: Failed to parse JSON response: %s", label, exc)
     return None
 
 

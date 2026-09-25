@@ -28,7 +28,7 @@ from telebot import types
 import youtube_uploader
 import content_memory
 import event_memory
-
+import gemini_config
 
 
 # -----------------------------
@@ -57,18 +57,6 @@ MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "80"))
 # not an attempt to edit/inpaint the mark out of the source image.
 WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
-
-DEFAULT_CANDIDATE_MODELS = [
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-]
-
-
-def get_candidate_models() -> list[str]:
-    user_model = os.getenv("GEMINI_MODEL")
-    if user_model:
-        return [user_model] + [m for m in DEFAULT_CANDIDATE_MODELS if m != user_model]
-    return list(DEFAULT_CANDIDATE_MODELS)
 
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -323,51 +311,30 @@ SADECE şu JSON şemasında çıktı ver:
   ]
 }}
 """
-    candidate_models = get_candidate_models()
-
     for attempt in range(3):
-        for model in candidate_models:
+        res = gemini_config.call_gemini_with_retry(
+            prompt=prompt,
+            label="topic discovery",
+            response_mime_type="application/json"
+        )
+        if res and res.text:
             try:
-                log.info("Discovering topics: %s (attempt %s)", model, attempt + 1)
-                res = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config={"response_mime_type": "application/json"},
-                )
-                if res and res.text:
-                    parsed = json.loads(res.text.strip())
-                    topics = parsed.get("topics", [])
-                    if topics and isinstance(topics, list):
-                        past_lower = {t.lower() for t in history_titles if isinstance(t, str)}
-                        unseen = [t for t in topics if t.get("title", "").lower() not in past_lower]
-                        candidates = unseen if unseen else topics
-                        best = max(
-                            candidates,
-                            key=lambda t: float(t.get("viral_score", 5)) + float(t.get("visual_appeal", 5)),
-                        )
-                        log.info("Selected topic: %s (score: %s)", best.get("title"), best.get("viral_score"))
-                        return best
+                parsed = json.loads(res.text.strip())
+                topics = parsed.get("topics", [])
+                if topics and isinstance(topics, list):
+                    past_lower = {t.lower() for t in history_titles if isinstance(t, str)}
+                    unseen = [t for t in topics if t.get("title", "").lower() not in past_lower]
+                    candidates = unseen if unseen else topics
+                    best = max(
+                        candidates,
+                        key=lambda t: float(t.get("viral_score", 5)) + float(t.get("visual_appeal", 5)),
+                    )
+                    log.info("Selected topic: %s (score: %s)", best.get("title"), best.get("viral_score"))
+                    return best
             except Exception as exc:
-                log.warning("Topic discovery failed with %s: %s", model, exc)
-                err_str = str(exc)
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    time.sleep(5)
-                else:
-                    time.sleep(1)
-        time.sleep((attempt + 1) * 3)
+                log.warning("Topic discovery JSON parse failed: %s", exc)
 
-    # Reliable fallback pool if API is unavailable
-    past_lower = {t.lower() for t in history_titles if isinstance(t, str)}
-    unseen_fallbacks = [fb for fb in FALLBACK_STORIES if fb.get("title", "").lower() not in past_lower]
-    chosen = random.choice(unseen_fallbacks if unseen_fallbacks else FALLBACK_STORIES)
-    log.info("Selected curated fallback topic: %s", chosen["title"])
-    return {
-        "title": chosen["title"],
-        "hook_question": chosen["hook_question"],
-        "viral_score": chosen["viral_score"],
-        "visual_appeal": chosen["visual_appeal"],
-        "scenes": chosen["scenes"],
-    }
+    raise RuntimeError("Topic discovery failed after all attempts. Pipeline aborting safely.")
 
 
 def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> dict:
@@ -462,32 +429,23 @@ Kurallar:
 }}
 """
 
-    candidate_models = get_candidate_models()
-
     for attempt in range(4):
-        for model in candidate_models:
+        res = gemini_config.call_gemini_with_retry(
+            prompt=prompt,
+            label="script generation",
+            response_mime_type="application/json"
+        )
+        
+        if res and res.text:
             try:
-                log.info("Requesting structured script from dossier: %s (attempt %s)", model, attempt + 1)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config={"response_mime_type": "application/json"},
-                )
-                if response and response.text:
-                    data = json.loads(response.text.strip())
-                    scenes = validate_script(data)
-                    topic_compat = {"title": topic_title} # For QA
-                    qa_result = evaluate_script_quality(scenes, topic_compat)
-                    log.info("Script QA evaluated: score=%s, issues=%s", qa_result["score"], qa_result["issues"])
-                    return scenes
+                data = json.loads(res.text.strip())
+                scenes = validate_script(data)
+                topic_compat = {"title": topic_title} # For QA
+                qa_result = evaluate_script_quality(scenes, topic_compat)
+                log.info("Script QA evaluated: score=%s, issues=%s", qa_result["score"], qa_result["issues"])
+                return scenes
             except Exception as exc:
-                log.warning("Script generation failed with %s: %s", model, exc)
-                err_str = str(exc)
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    time.sleep(5)
-                else:
-                    time.sleep(1)
-        time.sleep((attempt + 1) * 3)
+                log.warning("Script parsing or validation failed: %s", exc)
 
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
