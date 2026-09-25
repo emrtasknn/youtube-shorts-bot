@@ -1,4 +1,4 @@
-name: V1.2 Smoke Tests
+name: V1.3 Smoke Tests
 
 on:
   push:
@@ -36,5 +36,35 @@ jobs:
           assert event_memory._visual_relevance("Emu War Lewis gun", "Lewis Gun during Emu War") >= 0.55
           assert event_memory._visual_relevance("10,000 rounds ammunition", "random desert landscape") < 0.55
 
-          print("V1.2 smoke tests passed")
+          _, map_meta = event_memory._visual_intent_match_score(
+              "St Giles & Holborn Civil Parish Map 1870",
+              "historical map of St Giles parish",
+              "The London Beer Flood vintage city map",
+              "The London Beer Flood",
+              {"primary_subject": "vintage city map", "visual_type": "map",
+               "must_show": ["old paper texture", "London district street layout"]}
+          )
+          assert map_meta["intent_pass"], "Relevant historical map should pass"
+
+          _, court_meta = event_memory._visual_intent_match_score(
+              "St James Court Fountain Louisville",
+              "architecture and fountain",
+              "The London Beer Flood courtroom judge bench legal documents",
+              "The London Beer Flood",
+              {"primary_subject": "courtroom judge bench", "visual_type": "artifact",
+               "must_show": ["wooden bench", "legal documents"]}
+          )
+          assert not court_meta["intent_pass"], "Generic architecture must not pass courtroom intent"
+
+          _, crowd_meta = event_memory._visual_intent_match_score(
+              "'Tickets,' The Card Dealer (1877): Remixed",
+              "historical card dealer artwork",
+              "The London Beer Flood crowd of people foggy atmosphere historical silhouettes",
+              "The London Beer Flood",
+              {"primary_subject": "crowd of people", "visual_type": "crowd",
+               "must_show": ["foggy atmosphere", "historical silhouettes"]}
+          )
+          assert not crowd_meta["intent_pass"], "Unrelated artwork must not pass crowd intent"
+
+          print("V1.3 smoke tests passed")
           PY
