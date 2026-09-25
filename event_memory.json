@@ -101,5 +101,40 @@
     "created_at": "2026-09-25T19:53:29",
     "status": "used",
     "completed_at": "2026-09-25T20:03:28"
+  },
+  {
+    "event_id": "evt_450adab100d3",
+    "canonical_title": "The War of the Oaken Bucket",
+    "aliases": [
+      "Zanpino Savaşı",
+      "Modena-Bologna kovası savaşı"
+    ],
+    "date": "1325",
+    "date_normalized": "1325",
+    "location": "Zappolino, Italy",
+    "entities": [
+      "Modena",
+      "Bologna"
+    ],
+    "event_summary": "A bloody battle fought between two rival Italian city-states triggered by the theft of a wooden well bucket by Modenese soldiers.",
+    "core_facts": [
+      "Zappolino Muharebesi 15 Kasım 1325 tarihinde gerçekleşmiştir.",
+      "Savaş, Guelph destekçisi Bologna ile Ghibelline destekçisi Modena arasında yaşanmıştır.",
+      "Muharebede yaklaşık 2.000 asker hayatını kaybetmiştir.",
+      "Modena ordusu muharebeyi kazanmış ve Modena şehrine bir ahşap kova ganimet olarak getirilmiştir.",
+      "Söz konusu ahşap kova günümüzde hâlâ Modena'daki Torre della Ghirlandina'da sergilenmektedir."
+    ],
+    "claims": [
+      "Kovanın savaşın asıl tetikleyicisi olup olmadığı; çoğu tarihçi kovanın sadece sembolik bir ganimet olduğunu savunmaktadır.",
+      "Bologna'nın Modena'ya olan düşmanlığının sadece kova meselesine indirgenemeyecek kadar derin siyasi (Papa vs. İmparator) kökleri olduğu."
+    ],
+    "sources": [
+      "Alessandro Tassoni, 'La secchia rapita' (The Stolen Bucket), 1622",
+      "Enciclopedia Italiana - Dizionario Biografico degli Italiani"
+    ],
+    "first_video_id": "run_20260925_205239",
+    "created_at": "2026-09-25T20:45:00",
+    "status": "used",
+    "completed_at": "2026-09-25T20:52:39"
   }
 ]
