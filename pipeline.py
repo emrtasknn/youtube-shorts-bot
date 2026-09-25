@@ -22,7 +22,7 @@ from moviepy import (
     VideoFileClip,
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
 from telebot import types
 
 import youtube_uploader
@@ -57,6 +57,8 @@ MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "72"))
 # not an attempt to edit/inpaint the mark out of the source image.
 WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
+IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
+REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
 
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -359,9 +361,11 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     # 1. Hook check in Scene 1
     s1 = scenes[0].get("narration", "")
     hook_indicators = ["?", "nasıl", "neden", "kim", "nerede", "hiç", "inanılmaz", "gizem", "şok", "esrarengiz", "fakat"]
-    if not any(ind in s1.lower() for ind in hook_indicators) or len(s1.split()) > 14:
+    passive_date_openers = ("1814 yılında", "1872 yılında", "191", "18", "17")
+    has_hook_signal = any(ind in s1.lower() for ind in hook_indicators)
+    if (not has_hook_signal and s1.lower().startswith(passive_date_openers)) or len(s1.split()) > 14:
         score -= 20
-        issues.append("Scene 1 lacks a strong short hook (question/trigger, max 14 words)")
+        issues.append("Scene 1 hook is too passive/date-led or too long; prefer immediate surprise, scale, or question")
 
     # 2. Seamless loop check in Scene 7
     s7 = scenes[-1].get("narration", "").strip()
@@ -420,7 +424,7 @@ AMAÇ: 7 sahnenin toplamı kesinlikle 72 kelimeyi geçmesin. Her sahne 6-12 keli
 Öncelik kısa ve doğal Türkçe cümlelerdir. 30-38 saniyelik, hızlı ve yoğun bir Shorts üret.
 
 Sahne Hikaye Şablonu:
-- 1. Sahne: GÜÇLÜ KANCA - 6-10 kelime. Başlığı tekrar etme. İlk cümlede şaşırtıcı gerçek, sayı, imkânsız görünen durum veya doğrudan soru kullan.
+- 1. Sahne: GÜÇLÜ KANCA - 6-10 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
 - 2-3. Sahne: Merak ve Tırmanış (Escalation) - Olayın karanlık ve gizemli ayrıntıları (DOĞRULANMIŞ GERÇEKLERİ KULLAN).
 - 4-5. Sahne: Çarpıcı Kırılma (The Twist) - Tarihçileri şaşkına çeviren beklenmedik boyut veya spekülasyonlar.
 - 6. Sahne: Yankı - Bu olayın tarihte bıraktığı silinmez iz.
@@ -694,6 +698,60 @@ def download_ai_image(prompt_text: str, filename: Path):
 MOTION_TYPES = ["zoom_in", "pan_left_right", "zoom_out", "pan_right_left"]
 
 
+def enhance_source_image(image_path: Path, source_type: str = "", visual_intent: dict | None = None) -> dict:
+    """Apply conservative source-aware restoration before video composition."""
+    if not IMAGE_ENHANCEMENT_ENABLED:
+        return {"enabled": False, "source_type": source_type}
+
+    intent = visual_intent or {}
+    visual_type = str(intent.get("visual_type", "")).lower()
+    try:
+        with Image.open(image_path) as source:
+            img = source.convert("RGB")
+        original_size = img.size
+
+        if source_type in ("wikimedia", "openverse"):
+            if visual_type in ("map", "document", "artifact"):
+                img = ImageEnhance.Contrast(img).enhance(1.04)
+                img = ImageEnhance.Sharpness(img).enhance(1.06)
+            else:
+                img = ImageOps.autocontrast(img, cutoff=1)
+                img = ImageEnhance.Contrast(img).enhance(1.05)
+                img = ImageEnhance.Color(img).enhance(1.02)
+                img = ImageEnhance.Sharpness(img).enhance(1.10)
+            profile = "archival_gentle"
+        else:
+            img = ImageOps.autocontrast(img, cutoff=1)
+            img = ImageEnhance.Contrast(img).enhance(1.06)
+            img = ImageEnhance.Sharpness(img).enhance(1.14)
+            profile = "ai_detail"
+
+        img.save(image_path, quality=96, subsampling=0)
+        return {
+            "enabled": True,
+            "source_type": source_type,
+            "visual_type": visual_type,
+            "original_size": list(original_size),
+            "final_size": list(img.size),
+            "profile": profile,
+        }
+    except Exception as exc:
+        raise RuntimeError(f"Image enhancement failed for {image_path.name}: {exc}") from exc
+
+
+def prepare_vertical_image(image_path: Path) -> None:
+    """Resize without geometric stretching; crop to the 9:16 canvas."""
+    with Image.open(image_path) as source:
+        img = ImageOps.fit(
+            source.convert("RGB"),
+            (VIDEO_WIDTH, VIDEO_HEIGHT),
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
+        )
+        img.save(image_path, quality=96, subsampling=0)
+
+
+
 def turkish_upper(text: str) -> str:
     """Convert text to uppercase respecting Turkish-specific character rules."""
     mapping = {
@@ -840,10 +898,7 @@ def create_hook_badge(duration: float = 2.2, title: str | None = None) -> ImageC
 def build_scene_clip(image_path: Path, start_time: float, end_time: float, motion_type: str = "zoom_in"):
     duration = max(end_time - start_time, 0.2)
 
-    with Image.open(image_path) as img:
-        img = img.convert("RGB").resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
-        img.save(image_path, quality=95)
-
+    prepare_vertical_image(image_path)
     clip = ImageClip(str(image_path)).with_duration(duration).with_start(start_time)
 
     # Watermark-safe Ken Burns: scale is ALWAYS >= 1.03
@@ -1512,7 +1567,7 @@ def run(auto_publish: bool | None = None):
         if resolved_url and resolved_url not in used_visual_urls:
             used_visual_urls.append(resolved_url)
     
-    visual_qa = validate_visual_sources(visual_sources, scenes)
+    visual_qa = validate_visual_sources(visual_sources, scenes, min_relevance=REAL_VISUAL_MIN_RELEVANCE)
     log.info(
         "Visual QA passed: %d real visuals, %d AI reconstructions",
         visual_qa["real_visuals"],
@@ -1552,6 +1607,7 @@ def run(auto_publish: bool | None = None):
                     e,
                 )
 
+        source_type_for_enhancement = v_source.get("source_type", "ai_reconstruction") if image_downloaded else "ai_reconstruction"
         if not image_downloaded:
             intent = scene.get("visual_intent", {})
             ai_prompt = (
@@ -1564,7 +1620,18 @@ def run(auto_publish: bool | None = None):
                 "No modern objects, no text, no watermark, documentary historical reconstruction."
             )
             download_ai_image(ai_prompt, image_path)
-            
+
+        enhancement_info = enhance_source_image(
+            image_path,
+            source_type=source_type_for_enhancement,
+            visual_intent=scene.get("visual_intent", {}),
+        )
+        scene["image_enhancement"] = enhancement_info
+        log.info(
+            "Scene %d image enhancement: enabled=%s profile=%s",
+            i, enhancement_info.get("enabled"), enhancement_info.get("profile", "none"),
+        )
+
         motion_type = MOTION_TYPES[(i - 1) % len(MOTION_TYPES)]
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
 
@@ -1698,6 +1765,11 @@ def run(auto_publish: bool | None = None):
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_qa": visual_qa,
         "visual_reuse_warnings": visual_warnings,
+        "image_enhancement": {
+            "enabled": IMAGE_ENHANCEMENT_ENABLED,
+            "real_visual_min_relevance": REAL_VISUAL_MIN_RELEVANCE,
+            "method": "source-aware PIL restoration; no generative redraw",
+        },
     }
     (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1737,4 +1809,3 @@ if __name__ == "__main__":
         start_bot_service()
     else:
         run()
-
