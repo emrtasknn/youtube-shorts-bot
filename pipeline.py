@@ -50,7 +50,7 @@ TARGET_DURATION = int(os.getenv("TARGET_DURATION", "25"))
 MIN_DURATION = int(os.getenv("MIN_DURATION", "15"))
 MAX_DURATION = int(os.getenv("MAX_DURATION", "45"))
 MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "30"))
-MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "80"))
+MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "100"))
 
 # The image provider's mark is kept out of the final frame by cropping the
 # lower part of the generated image. This is intentionally a fixed crop,
@@ -404,7 +404,8 @@ EFSANELER / SPEKÜLASYONLAR:
 {myths_str}
 
 Bu olayı tam {SCENE_COUNT} sahnelik, yüksek tempolu bir Shorts senaryosu olarak yaz.
-Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye (toplam 40-65 kelime).
+Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye (toplam 65-90 kelime).
+Doğal ve yüksek tempolu Türkçe anlatım kullan, {SCENE_COUNT} sahne arasında kelimeleri dengeli dağıt.
 
 Sahne Hikaye Şablonu:
 - 1. Sahne: Güçlü Kanca (Hook) - İlk 1-2 saniyede izleyiciyi ekrana bağlayacak şok edici soru veya gerçek.
@@ -429,9 +430,10 @@ Kurallar:
 }}
 """
 
+    current_prompt = prompt
     for attempt in range(4):
         res = gemini_config.call_gemini_with_retry(
-            prompt=prompt,
+            prompt=current_prompt,
             label="script generation",
             response_mime_type="application/json"
         )
@@ -445,7 +447,9 @@ Kurallar:
                 log.info("Script QA evaluated: score=%s, issues=%s", qa_result["score"], qa_result["issues"])
                 return scenes
             except Exception as exc:
-                log.warning("Script parsing or validation failed: %s", exc)
+                err_msg = str(exc)
+                log.warning("Script parsing or validation failed: %s", err_msg)
+                current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\nLütfen word count ve diğer kurallara sıkı sıkıya uyarak tekrar oluştur."
 
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
@@ -1399,20 +1403,16 @@ def run(auto_publish: bool | None = None):
         words_data = asyncio.run(create_voice_with_timestamps(full_text, voice_path))
         voice_audio = AudioFileClip(str(voice_path))
         total_duration = voice_audio.duration
-        if MIN_DURATION <= total_duration <= MAX_DURATION:
+        if 15.0 <= total_duration <= 45.0:
+            if total_duration > 35.0:
+                log.warning("Duration %.2fs is between 35-45s (acceptable but on the longer side, ensure QA is passed).", total_duration)
             break
 
         log.warning(
-            "TTS duration %.2fs is outside %s-%ss; regenerating script (%s/3)",
-            total_duration, MIN_DURATION, MAX_DURATION, duration_attempt,
+            "TTS duration %.2fs is outside 15-45s; regenerating script (%s/3)",
+            total_duration, duration_attempt,
         )
         if duration_attempt == 3:
-            if 10.0 <= total_duration <= 58.0:
-                log.warning(
-                    "Duration %.2fs is outside target range [%s-%ss], but within YouTube Shorts limits. Proceeding.",
-                    total_duration, MIN_DURATION, MAX_DURATION,
-                )
-                break
             raise RuntimeError(f"Could not produce a Short in target duration range: {total_duration:.2f}s")
         scenes = generate_viral_script(candidate, research_dossier)
         full_text = " ".join(scene["narration"] for scene in scenes)

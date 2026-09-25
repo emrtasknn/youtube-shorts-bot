@@ -71,6 +71,11 @@ def call_gemini_with_retry(
                 
                 # Check if error is retryable (transient/rate limit)
                 if any(err in err_str for err in ["503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED", "Too Many Requests", "Internal Server Error"]):
+                    # Quota exception: do not retry for daily Free Tier quota
+                    if "GenerateRequestsPerDayPerProject-FreeTier" in err_str or "quota exceeded" in err_str.lower():
+                        log.warning("%s: Daily Free Tier quota exceeded for model '%s'. Skipping retry.", label, model)
+                        break
+                        
                     if attempt < max_retries_per_model:
                         wait_time = base_wait ** attempt  # Exponential: 2, 4, 8...
                         log.info("Waiting %d seconds before retry...", wait_time)
