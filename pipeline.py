@@ -59,10 +59,8 @@ WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 
 DEFAULT_CANDIDATE_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
+    "gemini-1.5-pro",
 ]
 
 

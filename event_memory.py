@@ -55,7 +55,7 @@ def _get_genai_client():
 def _get_models() -> list[str]:
     """Return candidate Gemini models (prefer fast/cheap)."""
     user_model = os.getenv("GEMINI_MODEL")
-    defaults = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+    defaults = ["gemini-1.5-flash", "gemini-1.5-pro"]
     if user_model:
         return [user_model] + [m for m in defaults if m != user_model]
     return defaults
