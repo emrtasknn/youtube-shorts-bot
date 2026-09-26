@@ -583,6 +583,10 @@ Kurallar:
 23. Görsel arketipleri factual intent'i ezmemeli. Metin harita gerektirmiyorsa sırf çeşitlilik için map kullanma.
 24. AI fallback, visual_fact'i birebir görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
 
+25. Her sahne için `event_specificity` ve `information_density` planlama puanlarını 0-1 arasında ver.
+26. evidence, mechanism, reconstruction, context_map, person_or_entity ve aftermath rollerinde event_specificity en az 0.70 hedefle.
+27. atmosphere rolünü en fazla 1 sahnede kullan ve information_density düşük olabilir; diğer sahneler bilgi taşımalıdır.
+
 Şema:
 {{
   "scenes": [
@@ -591,6 +595,8 @@ Kurallar:
       "image_prompt": "...",
       "visual_fact": "...",
       "visual_role": "evidence",
+      "event_specificity": 0.90,
+      "information_density": 0.85,
       "visual_intent": {{
         "visual_fact": "...",
         "visual_role": "evidence",
