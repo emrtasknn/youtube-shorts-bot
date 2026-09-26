@@ -13,6 +13,7 @@ import edge_tts
 import numpy as np
 import requests
 import telebot
+from huggingface_hub import InferenceClient
 from google import genai
 from moviepy import (
     AudioFileClip,
@@ -137,6 +138,8 @@ def choose_voice_profile(candidate: dict, research_dossier: dict) -> tuple[str, 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+HF_TOKEN = os.environ.get("HF_TOKEN")
+HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell")
 
 if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY is missing")
@@ -929,27 +932,95 @@ def try_imagen3_generation(prompt_text: str, filename: Path) -> bool:
     return False
 
 
-def download_ai_image(prompt_text: str, filename: Path):
-    if try_imagen3_generation(prompt_text, filename):
-        return filename
+def _save_generated_image_bytes(image_bytes: bytes, filename: Path, crop_watermark: bool = False):
+    if not image_bytes or len(image_bytes) <= 5000:
+        raise RuntimeError("Generated image response is unexpectedly small")
+    filename.write_bytes(image_bytes)
+    if crop_watermark:
+        crop_watermark_zone(filename)
+    return filename
 
+
+def try_pollinations_generation(prompt_text: str, filename: Path, model: str) -> Path:
     cleaned = urllib.parse.quote(prompt_text)
-    # Request square 1024x1024 to prevent Pollinations from stretching/distorting the latents
     url = (
         f"https://image.pollinations.ai/prompt/{cleaned}"
-        f"?width=1024&height=1024&model=turbo&nologo=true"
+        f"?width=1024&height=1024&model={urllib.parse.quote(model)}&nologo=true"
     )
 
     def request_image():
-        response = requests.get(url, timeout=60)
+        response = requests.get(url, timeout=75)
         response.raise_for_status()
-        if len(response.content) <= 5000:
-            raise RuntimeError("Image response is unexpectedly small")
-        filename.write_bytes(response.content)
-        crop_watermark_zone(filename)
+        return _save_generated_image_bytes(response.content, filename, crop_watermark=True)
+
+    return retry_call(
+        request_image,
+        attempts=2,
+        base_delay=4,
+        label=f"Pollinations {model} image generation",
+    )
+
+
+def try_huggingface_generation(prompt_text: str, filename: Path) -> Path | None:
+    """Last-resort cloud image provider using the user's Hugging Face free credits."""
+    if not HF_TOKEN:
+        log.info("Hugging Face image fallback skipped: HF_TOKEN is not configured")
+        return None
+
+    def request_image():
+        client = InferenceClient(
+            api_key=HF_TOKEN,
+            provider="auto",
+        )
+        image = client.text_to_image(
+            prompt_text,
+            model=HF_IMAGE_MODEL,
+            width=1024,
+            height=1024,
+        )
+        if image is None:
+            raise RuntimeError("Hugging Face returned no image")
+        image.save(filename, format="PNG")
         return filename
 
-    return retry_call(request_image, attempts=3, base_delay=3, label="image generation")
+    try:
+        return retry_call(
+            request_image,
+            attempts=2,
+            base_delay=5,
+            label=f"Hugging Face {HF_IMAGE_MODEL} image generation",
+        )
+    except Exception as exc:
+        log.warning("Hugging Face image fallback failed: %s", exc)
+        return None
+
+
+def download_ai_image(prompt_text: str, filename: Path):
+    # Provider chain:
+    # 1) Google Imagen 3 (already available through the existing Gemini setup)
+    # 2) Pollinations turbo
+    # 3) Pollinations flux
+    # 4) Hugging Face Inference Providers (only when HF_TOKEN exists)
+    if try_imagen3_generation(prompt_text, filename):
+        return filename
+
+    for model in ("turbo", "flux"):
+        try:
+            result = try_pollinations_generation(prompt_text, filename, model)
+            log.info("AI IMAGE PROVIDER: Pollinations/%s", model)
+            return result
+        except Exception as exc:
+            log.warning("Pollinations/%s unavailable: %s", model, exc)
+
+    hf_result = try_huggingface_generation(prompt_text, filename)
+    if hf_result:
+        log.info("AI IMAGE PROVIDER: Hugging Face/%s", HF_IMAGE_MODEL)
+        return hf_result
+
+    raise RuntimeError(
+        "All AI image providers failed: Imagen 3, Pollinations turbo, "
+        "Pollinations flux, and Hugging Face"
+    )
 
 
 # -----------------------------
