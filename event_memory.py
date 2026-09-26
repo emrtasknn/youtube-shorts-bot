@@ -1196,25 +1196,36 @@ def search_openverse_image(
     return None
 
 
-def build_visual_search_queries(scene_description: str, visual_intent: dict, event_title: str = "") -> list[str]:
-    """Build precise scene-specific queries instead of searching raw narration."""
-    explicit = visual_intent.get("search_queries", []) if isinstance(visual_intent, dict) else []
-    must_show = visual_intent.get("must_show", []) if isinstance(visual_intent, dict) else []
-    primary = visual_intent.get("primary_subject", "") if isinstance(visual_intent, dict) else ""
+def build_visual_search_queries(
+    scene_description: str,
+    visual_intent: dict,
+    event_title: str = "",
+) -> list[str]:
+    """Build searches around the concrete visual fact, not narration keywords."""
+    intent = visual_intent if isinstance(visual_intent, dict) else {}
+    explicit = intent.get("search_queries", [])
+    visual_fact = str(intent.get("visual_fact", "")).strip()
+    must_show = intent.get("must_show", [])
+    primary = str(intent.get("primary_subject", "")).strip()
+
     queries = []
+    if visual_fact:
+        queries.append(f"{event_title} {visual_fact}".strip())
+    queries.extend(str(q).strip() for q in explicit if str(q).strip())
     if primary:
         queries.append(f"{event_title} {primary}".strip())
     if must_show:
         queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:3])).strip())
-    queries.extend(str(q).strip() for q in explicit if str(q).strip())
     if not queries:
         queries.append(f"{event_title} {scene_description[:100]}".strip())
+
     seen = set()
     unique = []
     for q in queries:
-        key = q.lower()
+        key = re.sub(r"\s+", " ", q.lower()).strip()
         if key not in seen:
-            seen.add(key); unique.append(q)
+            seen.add(key)
+            unique.append(q)
     return unique[:6]
 
 
