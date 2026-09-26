@@ -119,12 +119,22 @@ def get_youtube_client(
         except Exception as exc:
             log.warning("Could not load YOUTUBE_TOKEN_JSON env: %s", exc)
 
-    # 3. Direct refresh-token credentials (for Render / other headless hosts)
+    # 3. Direct refresh-token credentials (for Render / other headless hosts).
+    # Prefer these environment variables over local token files because Render
+    # does not have the developer's local OAuth files.
     if not creds:
         refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "").strip()
         client_id = os.environ.get("YOUTUBE_CLIENT_ID", "").strip()
         client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip()
+
         if refresh_token and client_id and client_secret:
+            log.info(
+                "Using Render YouTube refresh-token credentials "
+                "(refresh_token=%s, client_id=%s, client_secret=%s)",
+                "set",
+                "set",
+                "set",
+            )
             creds = Credentials(
                 token=None,
                 refresh_token=refresh_token,
@@ -133,18 +143,30 @@ def get_youtube_client(
                 client_secret=client_secret,
                 scopes=YOUTUBE_UPLOAD_SCOPE,
             )
+        elif os.environ.get("YOUTUBE_REFRESH_TOKEN") or os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("YOUTUBE_CLIENT_SECRET"):
+            raise RuntimeError(
+                "YouTube Render credentials are incomplete. "
+                "YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET must all be set."
+            )
 
-    # 4. Refresh credentials if expired
-    if creds and creds.expired and creds.refresh_token:
+    # 4. Refresh credentials when there is no access token yet or the token
+    # has expired. This is essential for headless Render deployments: a
+    # refresh-token-only Credentials object starts with token=None and is not
+    # necessarily marked expired by google-auth.
+    if creds and creds.refresh_token and (creds.token is None or creds.expired):
         try:
             creds.refresh(Request())
-            if tok_file.parent.exists():
+            log.info("YouTube OAuth access token refreshed successfully.")
+            # Persist only when a writable local token file is actually in use.
+            if tok_file.parent.exists() and tok_file.exists():
                 tok_file.write_text(creds.to_json(), encoding="utf-8")
         except Exception as exc:
-            log.warning("Token refresh failed: %s", exc)
-            creds = None
+            log.exception("YouTube OAuth refresh failed")
+            raise RuntimeError(
+                f"YouTube OAuth refresh failed: {type(exc).__name__}: {exc}"
+            ) from exc
 
-    # 4. If still no valid creds, try client_secrets flow
+    # 5. If still no valid creds, try client_secrets flow
     if not creds or not creds.valid:
         if secrets_file.exists():
             flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), YOUTUBE_UPLOAD_SCOPE)
