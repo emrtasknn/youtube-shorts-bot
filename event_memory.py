@@ -1072,6 +1072,7 @@ def search_wikimedia_image(
     excluded_urls: Optional[list[str]] = None,
     min_relevance: float = 0.65,
     visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> Optional[dict]:
     """Search Wikimedia Commons and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1097,9 +1098,30 @@ def search_wikimedia_image(
             )
             if visual_intent and not intent_meta.get("intent_pass"):
                 continue
-            ranked.append((max(score, intent_score), item, intent_meta))
+            specificity = 0.0
+            specificity_meta = {}
+            density = 0.0
+            density_meta = {}
+            if event_context:
+                specificity, specificity_meta = _visual_event_specificity(
+                    title=title,
+                    description=snippet,
+                    visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                    event_title=event_context.get("title", event_title),
+                    event_aliases=event_context.get("aliases", []),
+                    event_location=event_context.get("location", ""),
+                    event_entities=event_context.get("entities", []),
+                    event_date=event_context.get("date", ""),
+                )
+                density, density_meta = _visual_information_density(
+                    title=title,
+                    description=snippet,
+                    visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                    must_show=visual_intent.get("must_show", []) if visual_intent else [],
+                )
+            ranked.append((max(score, intent_score), item, intent_meta, specificity, specificity_meta, density, density_meta))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for score, item, intent_meta in ranked[:5]:
+        for score, item, intent_meta, specificity, specificity_meta, density, density_meta in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1134,6 +1156,10 @@ def search_wikimedia_image(
                     "license": meta.get("LicenseShortName", {}).get("value", ""),
                     "attribution": author, "relevance_score": score, "search_query": search_term,
                     "intent_match": intent_meta,
+                    "event_specificity": specificity,
+                    "event_specificity_meta": specificity_meta,
+                    "information_density": density,
+                    "information_density_meta": density_meta,
                 }
     except Exception as exc:
         log.debug("Wikimedia search failed for %r: %s", search_term, exc)
