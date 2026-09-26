@@ -21,6 +21,7 @@ Bu proje, yapay zeka teknolojilerini (Google Gemini, Edge-TTS, MoviePy 2.x, PIL,
 - **Kelime Vurgulu Dinamik Altyazı Motoru**:
   - Konuşulan aktif kelime parlak sarı (`#FFE500`), diğer kelimeler beyaz ve 6px siyah dış hat ile çizilir.
   - Türkçe büyük harf dönüşümü (`i -> İ`, `ı -> I`) ve UTF-8 karakterler kusursuz desteklenir.
+  - YouTube Shorts alt UI alanından uzak **safe-zone yerleşimi** ve gerektiğinde otomatik 2 satır sarma uygulanır.
 - **Kanca Rozeti (Hook Badge)**: İlk 2.2 saniyede ekranın üst kısmında konunun çarpıcı başlığı dikkat çekici altın çerçeveli rozet olarak yer alır.
 - **Ambiyans Müziği**: Arka plan müziği seslendirme altına dengelenerek `%10` ses seviyesi ve yumuşak fade-in / fade-out efektleriyle mikslenir.
 
@@ -38,7 +39,7 @@ Her üretilen video Telegram üzerinden önizleme ve 4 interaktif inline buton i
 - `/history`: Son üretilen 10 konunun listesini ve tarihlerini döker.
 
 ### 4. YouTube Data API v3 Otomasyonu
-- **Metadata Optimizasyonu**: Başlık sonuna `#Shorts` eklenir, maksimum 100 karakter sınırına göre dinamik optimize edilir.
+- **Metadata Optimizasyonu**: Gemini, olay + araştırma kancası + final senaryodan YouTube'a özel anlamlı bir başlık üretir; başlık sonuna `#Shorts` eklenir ve maksimum 100 karakter sınırına göre dinamik optimize edilir.
 - **Açıklama & Etiketler**: Kanca sorusu, hikaye özeti, kategorik etiketler (`#Shorts #Tarih #Gizem #Belgesel`) ve kategori ID `27` (Eğitim) ayarlanır.
 - **OAuth2 Token Yönetimi**: `client_secrets.json` veya `token.json` ile yetkilendirme; süresi dolan token'lar için otomatik yenileme (`refresh_token`).
 
