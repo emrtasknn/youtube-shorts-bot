@@ -526,5 +526,38 @@
     "created_at": "2026-09-26T13:51:45",
     "status": "used",
     "completed_at": "2026-09-26T14:02:29"
+  },
+  {
+    "event_id": "evt_822eaf86a3d5",
+    "canonical_title": "Project Pigeon",
+    "aliases": [
+      "Güvercin Projesi"
+    ],
+    "date": "1940s",
+    "date_normalized": "1940",
+    "location": "USA",
+    "entities": [
+      "B.F. Skinner"
+    ],
+    "event_summary": "Ünlü psikolog B.F. Skinner, II. Dünya Savaşı sırasında güvercinleri eğiterek onları güdümlü füzelere pilot olarak yerleştirmeyi amaçlayan bir proje geliştirdi.",
+    "core_facts": [
+      "Psikolog B.F. Skinner, II. Dünya Savaşı sırasında güvercin güdümlü füze sistemi için operant şartlandırma yöntemlerini kullandı.",
+      "Güvercinler, bir ekran üzerindeki hedefi gagalayarak füzenin kanatçıklarını kontrol eden bir mekanizmayı yönlendirecek şekilde eğitildi.",
+      "ABD Ulusal Savunma Araştırma Komitesi (NDRC) projeye başlangıçta fon sağladı ve testlerde %90 civarında isabet oranı elde edildi.",
+      "Proje, füze teknolojisindeki gelişmeler ve radar güdümlü sistemlerin ortaya çıkması nedeniyle 1944 yılında resmen iptal edildi.",
+      "Skinner, projenin başarısızlığının askeri yetkililerin 'deli saçması' olarak görmesinden kaynaklandığını otobiyografisinde belirtmiştir."
+    ],
+    "claims": [
+      "Projenin teknolojik olarak pratikte uygulanamaz olup olmadığı (Skinner sistemin çalıştığını savunuyordu, ordu ise lojistik olarak imkansız olduğunu düşünüyordu).",
+      "Projenin gerçekten ciddiye alınıp alınmadığı yoksa sadece sınırlı bir deney olarak mı kaldığı."
+    ],
+    "sources": [
+      "B.F. Skinner, 'Pigeons in a Pelican', American Psychologist, 1960",
+      "National Museum of American History: Project Pigeon Records"
+    ],
+    "first_video_id": "run_20260926_141640",
+    "created_at": "2026-09-26T14:07:45",
+    "status": "used",
+    "completed_at": "2026-09-26T14:16:40"
   }
 ]
