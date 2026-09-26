@@ -2178,8 +2178,8 @@ Rules:
         )
         raw = str(getattr(response, "text", "") or "").strip() if response else ""
         raw = raw.strip('"').strip("'").strip()
-        raw = re.sub(r"^Titles*:s*", "", raw, flags=re.IGNORECASE).strip()
-        raw = re.sub(r"^Başlıks*:s*", "", raw, flags=re.IGNORECASE).strip()
+        raw = re.sub(r"^Title\s*:\s*", "", raw, flags=re.IGNORECASE).strip()
+        raw = re.sub(r"^Başlık\s*:\s*", "", raw, flags=re.IGNORECASE).strip()
         raw = re.sub(r"#Shorts\b", "", raw, flags=re.IGNORECASE).strip()
         raw = raw.splitlines()[0].strip() if raw else ""
         if raw:
