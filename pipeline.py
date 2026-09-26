@@ -1381,6 +1381,32 @@ def load_approvals(approvals_path: Path | None = None) -> dict:
         return {}
 
 
+def register_telegram_control_state(state: dict):
+    """Register approval state with the persistent Telegram control service."""
+    control_url = os.getenv("CONTROL_API_URL", "").strip()
+    control_secret = os.getenv("CONTROL_API_SECRET", "").strip()
+    if not control_url or not control_secret:
+        log.warning("Telegram control service is not configured; interactive cloud buttons are disabled.")
+        return False
+
+    try:
+        response = requests.post(
+            control_url.rstrip("/") + "/register",
+            json=state,
+            headers={
+                "Content-Type": "application/json",
+                "X-Control-Secret": control_secret,
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        log.info("Telegram control state registered for %s", state.get("run_id"))
+        return True
+    except Exception as exc:
+        log.error("Could not register Telegram control state: %s", exc)
+        return False
+
+
 def save_approval_state(run_id: str, state_data: dict, approvals_path: Path | None = None):
     """Save or update a run approval state."""
     target_path = approvals_path if approvals_path is not None else APPROVALS_FILE
@@ -1456,16 +1482,24 @@ def send_to_telegram(
         f"{full_text[:280]}..."
     )
 
-    save_approval_state(run_id, {
+    approval_state = {
         "run_id": run_id,
         "status": "pending",
         "video_path": str(video_path),
         "topic": topic,
+        "event_id": (topic or {}).get("event_id", ""),
+        "github_run_id": os.getenv("GITHUB_RUN_ID", ""),
+        "github_run_number": os.getenv("GITHUB_RUN_NUMBER", ""),
         "total_duration": total_duration,
         "full_text": full_text,
         "scenes": scenes or [],
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-    })
+    }
+
+    # Keep the local state for compatibility, and mirror it to the persistent
+    # Telegram control service so buttons continue working after this runner exits.
+    save_approval_state(run_id, approval_state)
+    register_telegram_control_state(approval_state)
 
     markup = build_telegram_markup(run_id)
 
@@ -2165,6 +2199,8 @@ def run(auto_publish: bool | None = None):
     # ── Phase 4: Save Event Identity ──
     run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     event_record = event_memory.mark_event_as_used(candidate, research_dossier, video_id=run_id)
+    # Carry the canonical event ID into Telegram control state.
+    topic_compat["event_id"] = event_record.get("event_id", "")
 
     # ── Legacy Content Memory ──
     content_entry = content_memory_module.build_content_entry(
