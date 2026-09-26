@@ -32,11 +32,19 @@ def authenticate():
         port=0,
         authorization_prompt_message=prompt_msg,
         open_browser=True,
+        access_type="offline",
+        prompt="consent",
     )
 
     TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
     print(f"\n✓ BAŞARILI: '{TOKEN_FILE}' başarıyla üretildi!", flush=True)
-    print("Artık token.json içeriğini GitHub Secrets içine YOUTUBE_TOKEN_JSON olarak ekleyebilirsiniz.\n", flush=True)
+    if creds.refresh_token:
+        print("\n" + "=" * 70, flush=True)
+        print("YOUTUBE_REFRESH_TOKEN (BUNU SADECE RENDER ENVIRONMENT'A EKLE):", flush=True)
+        print(creds.refresh_token, flush=True)
+        print("=" * 70 + "\n", flush=True)
+    else:
+        print("\nUYARI: Refresh token dönmedi. OAuth akışını tekrar çalıştırmak gerekebilir.\n", flush=True)
     return creds
 
 
