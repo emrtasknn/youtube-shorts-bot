@@ -163,6 +163,23 @@ def test_turkish_upper():
     assert pipeline.turkish_upper("HELLO world") == "HELLO WORLD"
 
 
+def test_subtitle_safe_position_keeps_overlay_above_lower_ui():
+    assert pipeline._subtitle_safe_position(1920) < int(1920 * 0.70)
+    y = pipeline._subtitle_safe_position(1920)
+    assert y >= int(1920 * pipeline.SUBTITLE_SAFE_TOP)
+    assert y + pipeline.SUBTITLE_CANVAS_HEIGHT <= int(1920 * pipeline.SUBTITLE_SAFE_BOTTOM)
+
+
+def test_render_subtitle_image_wraps_inside_safe_width():
+    font = pipeline.get_subtitle_font(size=68)
+    arr = pipeline.render_subtitle_image(
+        ["BU", "ÇOK", "UZUN", "BİR", "ALTYAZI", "METNİ", "DENEMESİ"],
+        active_idx=3,
+        font=font,
+    )
+    assert arr.shape == (pipeline.SUBTITLE_CANVAS_HEIGHT, pipeline.VIDEO_WIDTH, 4)
+
+
 def test_render_subtitle_image():
     font = pipeline.get_subtitle_font(size=40)
     arr = pipeline.render_subtitle_image(["BİR", "İKİ", "ÜÇ"], active_idx=1, font=font)
@@ -599,6 +616,19 @@ def test_on_callback_query_dispatch(monkeypatch):
 # -----------------------------
 # Sprint 5 Tests: YouTube Automation & Uploader
 # -----------------------------
+
+def test_build_shorts_metadata_prefers_generated_youtube_title():
+    metadata = youtube_uploader.build_shorts_metadata(
+        topic={
+            "title": "The Berners Street Hoax",
+            "youtube_title": "Bir Adres Londra'yı Nasıl Kaosa Sürükledi?",
+        },
+        full_text="Bu olayla ilgili kısa bir açıklama.",
+    )
+    assert metadata["snippet"]["title"].startswith("Bir Adres Londra'yı Nasıl Kaosa Sürükledi?")
+    assert "#Shorts" in metadata["snippet"]["title"]
+
+
 def test_build_shorts_metadata():
     topic = {
         "title": "Babil'in Gizemli Asma Bahçeleri",
