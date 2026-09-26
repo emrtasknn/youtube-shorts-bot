@@ -173,5 +173,40 @@
     "created_at": "2026-09-25T21:18:56",
     "status": "used",
     "completed_at": "2026-09-25T21:28:42"
+  },
+  {
+    "event_id": "evt_77a078546c72",
+    "canonical_title": "The Tunguska Event",
+    "aliases": [
+      "Tunguska Olayı",
+      "1908 Sibirya Patlaması"
+    ],
+    "date": "1908",
+    "date_normalized": "1908",
+    "location": "Sibirya, Rusya",
+    "entities": [
+      "Leonid Kulik"
+    ],
+    "event_summary": "Sibirya'nın ıssız bir bölgesinde meydana gelen devasa bir patlama, yaklaşık 2.000 kilometrekarelik ormanı düzlemiştir. Patlamanın bir meteorit veya kuyruklu yıldız parçalanması olduğu düşünülse de olay yerinde krater bulunamamıştır.",
+    "core_facts": [
+      "30 Haziran 1908 sabahı Sibirya'nın Podkamennaya Tunguska nehri yakınlarında büyük bir patlama meydana geldi.",
+      "Yaklaşık 2.000 kilometrekarelik bir alandaki 80 milyon ağaç dışa dönük şekilde devrildi.",
+      "Patlama enerjisinin 10-15 megaton TNT gücünde olduğu bilimsel olarak tahmin edilmektedir.",
+      "Leonid Kulik liderliğindeki Sovyet keşif ekibi, 1927 yılında bölgeye ulaşarak ilk kapsamlı saha araştırmasını gerçekleştirdi.",
+      "Olay yerinde patlamaya dair bir krater veya büyük bir göktaşı parçası bulunamadı."
+    ],
+    "claims": [
+      "Patlamaya neden olan cismin niteliği (kuyruklu yıldız çekirdeği mi yoksa taşsı bir meteorit mi olduğu hala tartışmalıdır).",
+      "Patlamanın tam irtifası ve yerle temas etmeden parçalanma süreci üzerindeki fiziksel modellemelerdeki farklılıklar."
+    ],
+    "sources": [
+      "Kulik, L. A. (1927). 'The Tunguska Meteorite'. USSR Academy of Sciences.",
+      "Vasilyev, N. V. (1998). 'The Tunguska Meteorite Problem'. Journal of the Royal Astronomical Society of Canada.",
+      "Rubtsov, V. (2009). 'The Tunguska Mystery'. Springer."
+    ],
+    "first_video_id": "run_20260926_063056",
+    "created_at": "2026-09-26T06:19:49",
+    "status": "used",
+    "completed_at": "2026-09-26T06:30:56"
   }
 ]
