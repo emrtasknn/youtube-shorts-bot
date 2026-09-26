@@ -119,7 +119,22 @@ def get_youtube_client(
         except Exception as exc:
             log.warning("Could not load YOUTUBE_TOKEN_JSON env: %s", exc)
 
-    # 3. Refresh credentials if expired
+    # 3. Direct refresh-token credentials (for Render / other headless hosts)
+    if not creds:
+        refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "").strip()
+        client_id = os.environ.get("YOUTUBE_CLIENT_ID", "").strip()
+        client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET", "").strip()
+        if refresh_token and client_id and client_secret:
+            creds = Credentials(
+                token=None,
+                refresh_token=refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id=client_id,
+                client_secret=client_secret,
+                scopes=YOUTUBE_UPLOAD_SCOPE,
+            )
+
+    # 4. Refresh credentials if expired
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
