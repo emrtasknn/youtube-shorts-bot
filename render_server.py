@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import secrets
+import tempfile
 import threading
 import urllib.parse
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import requests
 
-import pipeline
 import youtube_uploader
 
 log = logging.getLogger("render-server")
@@ -22,21 +24,25 @@ logging.basicConfig(
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT_ID = str(os.environ["TELEGRAM_CHAT_ID"])
-CONTROL_API_SECRET = os.environ.get("CONTROL_API_SECRET", "")
-TELEGRAM_WEBHOOK_SECRET = os.environ.get(
-    "TELEGRAM_WEBHOOK_SECRET",
-    secrets.token_urlsafe(24),
-)
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "emrtasknn/youtube-shorts-bot").strip()
 
 PORT = int(os.environ.get("PORT", "10000"))
-MAX_DOWNLOAD_SIZE = 20 * 1024 * 1024
+TELEGRAM_WEBHOOK_SECRET = os.environ.get(
+    "TELEGRAM_WEBHOOK_SECRET",
+    secrets.token_urlsafe(32),
+)
 
-bot = pipeline.bot
+PROCESSED_CALLBACKS: set[str] = set()
+CALLBACK_LOCK = threading.Lock()
 
 
 def telegram(method: str, payload: dict) -> dict:
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/{method}"
-    response = requests.post(url, json=payload, timeout=30)
+    response = requests.post(
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/{method}",
+        json=payload,
+        timeout=30,
+    )
     response.raise_for_status()
     data = response.json()
     if not data.get("ok"):
@@ -44,21 +50,85 @@ def telegram(method: str, payload: dict) -> dict:
     return data
 
 
-def register_webhook(public_url: str) -> None:
-    webhook_url = public_url.rstrip("/") + "/telegram/webhook"
-    telegram(
-        "setWebhook",
-        {
-            "url": webhook_url,
-            "secret_token": TELEGRAM_WEBHOOK_SECRET,
-            "allowed_updates": ["callback_query", "message"],
-            "drop_pending_updates": False,
-        },
+def github_headers() -> dict:
+    if not GITHUB_TOKEN:
+        raise RuntimeError("GITHUB_TOKEN is missing in Render environment")
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "youtube-shorts-render-control",
+    }
+
+
+def github_dispatch(workflow_file: str, inputs: dict) -> None:
+    response = requests.post(
+        f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{workflow_file}/dispatches",
+        headers={**github_headers(), "Content-Type": "application/json"},
+        json={"ref": "main", "inputs": inputs},
+        timeout=30,
     )
-    log.info("Telegram webhook configured: %s", webhook_url)
+    if response.status_code not in {200, 201, 204}:
+        raise RuntimeError(
+            f"GitHub workflow dispatch failed: {response.status_code} {response.text[:1000]}"
+        )
 
 
-def send_publish_status(chat_id: str, text: str) -> None:
+def download_run_artifact(source_run_id: str, source_run_number: str) -> Path:
+    artifact_name = f"shorts-run-{source_run_number}"
+    response = requests.get(
+        f"https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{source_run_id}/artifacts",
+        headers=github_headers(),
+        params={"per_page": 100},
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    artifacts = response.json().get("artifacts", [])
+    artifact = next(
+        (
+            item
+            for item in artifacts
+            if item.get("name") == artifact_name and not item.get("expired")
+        ),
+        None,
+    )
+    if not artifact:
+        raise FileNotFoundError(
+            f"GitHub artifact '{artifact_name}' not found for run {source_run_id}"
+        )
+
+    archive_response = requests.get(
+        artifact["archive_download_url"],
+        headers=github_headers(),
+        timeout=120,
+    )
+    archive_response.raise_for_status()
+
+    target_dir = Path(tempfile.mkdtemp(prefix="youtube_short_publish_"))
+    with zipfile.ZipFile(io.BytesIO(archive_response.content)) as archive:
+        archive.extractall(target_dir)
+
+    video_candidates = list(target_dir.rglob("final_short.mp4"))
+    metadata_candidates = list(target_dir.rglob("metadata.json"))
+
+    if not video_candidates:
+        raise FileNotFoundError("final_short.mp4 was not found in GitHub artifact")
+    if not metadata_candidates:
+        raise FileNotFoundError("metadata.json was not found in GitHub artifact")
+
+    metadata_path = metadata_candidates[0]
+    video_path = video_candidates[0]
+
+    log.info(
+        "Downloaded publication artifact: video=%s metadata=%s",
+        video_path,
+        metadata_path,
+    )
+    return video_path
+
+
+def notify(chat_id: str, text: str) -> None:
     telegram(
         "sendMessage",
         {
@@ -69,167 +139,160 @@ def send_publish_status(chat_id: str, text: str) -> None:
     )
 
 
+def answer_callback(callback_id: str, text: str) -> None:
+    telegram(
+        "answerCallbackQuery",
+        {
+            "callback_query_id": callback_id,
+            "text": text,
+            "show_alert": False,
+        },
+    )
+
+
+def remove_buttons(chat_id: str, message_id: int) -> None:
+    telegram(
+        "editMessageReplyMarkup",
+        {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "reply_markup": {"inline_keyboard": []},
+        },
+    )
+
+
+def process_publish(source_run_id: str, source_run_number: str, chat_id: str) -> None:
+    try:
+        video_path = download_run_artifact(source_run_id, source_run_number)
+
+        # youtube_uploader supports direct OAuth refresh-token credentials
+        # through Render environment variables.
+        result = youtube_uploader.upload_shorts_video(
+            video_path=video_path,
+            privacy_status=os.getenv("YOUTUBE_PRIVACY_STATUS"),
+        )
+
+        title = result.get("title", "Video")
+        youtube_url = result.get("url", "")
+        video_id = result.get("video_id", "")
+
+        notify(
+            chat_id,
+            "🎉 YouTube Shorts'a yükleme tamamlandı!\n\n"
+            f"🎬 {title}\n"
+            f"🔗 {youtube_url}\n"
+            f"🆔 Video ID: {video_id}",
+        )
+
+    except Exception as exc:
+        log.exception("YouTube publication failed")
+        notify(
+            chat_id,
+            "❌ YouTube yüklemesi başarısız oldu.\n\n"
+            f"{type(exc).__name__}: {exc}",
+        )
+
+
 def process_callback(update: dict) -> None:
     callback = update.get("callback_query")
     if not callback:
         return
 
+    callback_id = str(callback.get("id", ""))
+    with CALLBACK_LOCK:
+        if callback_id in PROCESSED_CALLBACKS:
+            return
+        PROCESSED_CALLBACKS.add(callback_id)
+
     message = callback.get("message") or {}
-    chat_id = str((message.get("chat") or {}).get("id", ""))
+    chat = message.get("chat") or {}
+    chat_id = str(chat.get("id", ""))
+
     if chat_id != TELEGRAM_CHAT_ID:
-        telegram(
-            "answerCallbackQuery",
-            {
-                "callback_query_id": callback.get("id", ""),
-                "text": "Yetkisiz sohbet.",
-                "show_alert": True,
-            },
-        )
+        answer_callback(callback_id, "Yetkisiz sohbet.")
         return
 
-    data = str(callback.get("data") or "")
-    action, _, run_id = data.partition(":")
-    if not action or not run_id:
-        telegram(
-            "answerCallbackQuery",
-            {
-                "callback_query_id": callback.get("id", ""),
-                "text": "Geçersiz işlem.",
-                "show_alert": True,
-            },
+    data = str(callback.get("data", ""))
+    parts = data.split(":")
+    action = parts[0] if parts else ""
+
+    if action == "publish" and len(parts) >= 3:
+        source_run_id = parts[1]
+        source_run_number = parts[2]
+        answer_callback(callback_id, "Yayınlama başlatılıyor...")
+        try:
+            remove_buttons(chat_id, int(message.get("message_id")))
+        except Exception:
+            log.exception("Could not remove Telegram buttons")
+
+        notify(
+            chat_id,
+            "🚀 Video onaylandı. GitHub artifact indiriliyor ve YouTube'a yükleniyor...",
         )
+        threading.Thread(
+            target=process_publish,
+            args=(source_run_id, source_run_number, chat_id),
+            daemon=True,
+        ).start()
         return
 
-    state = pipeline.get_approval_state(run_id)
-    if not state:
-        telegram(
-            "answerCallbackQuery",
-            {
-                "callback_query_id": callback.get("id", ""),
-                "text": "Video kaydı bulunamadı.",
-                "show_alert": True,
-            },
-        )
+    if action == "regen" and len(parts) >= 2:
+        source_run_id = parts[1]
+        answer_callback(callback_id, "Yeni üretim başlatılıyor...")
+        try:
+            remove_buttons(chat_id, int(message.get("message_id")))
+        except Exception:
+            log.exception("Could not remove Telegram buttons")
+
+        try:
+            github_dispatch(
+                "daily_short.yml",
+                {
+                    "mode": "regenerate",
+                    "source_run_id": source_run_id,
+                    "source_event_id": "",
+                },
+            )
+            notify(chat_id, "🔄 Yeni video üretimi başlatıldı.")
+        except Exception as exc:
+            log.exception("Regeneration dispatch failed")
+            notify(
+                chat_id,
+                f"❌ Yeni üretim başlatılamadı.\n\n{type(exc).__name__}: {exc}",
+            )
         return
-
-    if state.get("status") not in {"pending"} and action in {"publish", "cancel", "regen"}:
-        telegram(
-            "answerCallbackQuery",
-            {
-                "callback_query_id": callback.get("id", ""),
-                "text": f"Bu video zaten {state.get('status', 'işleniyor')} durumunda.",
-                "show_alert": False,
-            },
-        )
-        return
-
-    telegram(
-        "answerCallbackQuery",
-        {
-            "callback_query_id": callback.get("id", ""),
-            "text": {
-                "publish": "Yayınlama başlatılıyor...",
-                "cancel": "Video iptal edildi.",
-                "regen": "Yeni üretim başlatılıyor...",
-                "script": "Senaryo getiriliyor...",
-            }.get(action, "İşlem başlatılıyor..."),
-            "show_alert": False,
-        },
-    )
-
-    if action == "script":
-        scenes = state.get("scenes", [])
-        title = state.get("topic", {}).get("title", "Short")
-        lines = [f"📜 {title}", ""]
-        for index, scene in enumerate(scenes, 1):
-            lines.append(f"{index}. Sahne")
-            lines.append(str(scene.get("narration", "")))
-            lines.append("")
-        telegram(
-            "sendMessage",
-            {
-                "chat_id": TELEGRAM_CHAT_ID,
-                "text": "\n".join(lines)[:4000],
-            },
-        )
-        return
-
-    try:
-        telegram(
-            "editMessageReplyMarkup",
-            {
-                "chat_id": chat_id,
-                "message_id": message.get("message_id"),
-                "reply_markup": {"inline_keyboard": []},
-            },
-        )
-    except Exception:
-        log.exception("Could not remove Telegram buttons")
 
     if action == "cancel":
-        pipeline.update_approval_status(run_id, "cancelled")
-        send_publish_status(chat_id, "❌ Video yayını iptal edildi.")
+        answer_callback(callback_id, "Video iptal edildi.")
+        try:
+            remove_buttons(chat_id, int(message.get("message_id")))
+        except Exception:
+            log.exception("Could not remove Telegram buttons")
+        notify(chat_id, "❌ Video yayını iptal edildi.")
         return
 
-    if action == "regen":
-        pipeline.update_approval_status(run_id, "regenerating")
-        send_publish_status(chat_id, "🔄 Yeni video üretimi başlatılıyor...")
-
-        def regenerate() -> None:
-            try:
-                pipeline.run()
-            except Exception as exc:
-                log.exception("Regeneration failed")
-                send_publish_status(chat_id, f"❌ Yeniden üretim başarısız: {type(exc).__name__}: {exc}")
-
-        threading.Thread(target=regenerate, daemon=True).start()
+    if action == "script":
+        answer_callback(
+            callback_id,
+            "Senaryo görüntüleme bu sürümde yayın akışından ayrıldı.",
+        )
         return
 
-    if action == "publish":
-        pipeline.update_approval_status(run_id, "uploading")
+    answer_callback(callback_id, "Geçersiz veya eski buton.")
 
-        def publish() -> None:
-            try:
-                video_path = Path(str(state.get("video_path", "")))
-                if not video_path.exists():
-                    raise FileNotFoundError(f"Video file not found: {video_path}")
 
-                result = youtube_uploader.upload_shorts_video(
-                    video_path=video_path,
-                    topic=state.get("topic"),
-                    full_text=state.get("full_text", ""),
-                )
-
-                youtube_url = result.get("url", "")
-                video_id = result.get("video_id", "")
-                pipeline.update_approval_status(
-                    run_id,
-                    "published",
-                    extra={
-                        "youtube_video_id": video_id,
-                        "youtube_url": youtube_url,
-                    },
-                )
-                send_publish_status(
-                    chat_id,
-                    "🎉 YouTube Shorts'a yükleme tamamlandı!\n\n"
-                    f"🔗 {youtube_url}\n"
-                    f"🆔 Video ID: {video_id}",
-                )
-            except Exception as exc:
-                log.exception("YouTube upload failed")
-                pipeline.update_approval_status(
-                    run_id,
-                    "upload_failed",
-                    extra={"upload_error": str(exc)},
-                )
-                send_publish_status(
-                    chat_id,
-                    f"❌ YouTube yüklemesi başarısız oldu.\n\n{type(exc).__name__}: {exc}",
-                )
-
-        threading.Thread(target=publish, daemon=True).start()
-        return
+def register_webhook(public_url: str) -> None:
+    webhook_url = public_url.rstrip("/") + "/telegram/webhook"
+    telegram(
+        "setWebhook",
+        {
+            "url": webhook_url,
+            "secret_token": TELEGRAM_WEBHOOK_SECRET,
+            "allowed_updates": ["callback_query"],
+            "drop_pending_updates": False,
+        },
+    )
+    log.info("Telegram webhook configured: %s", webhook_url)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -254,8 +317,12 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length)
 
         if parsed.path == "/telegram/webhook":
-            supplied = self.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-            if not secrets.compare_digest(supplied, TELEGRAM_WEBHOOK_SECRET):
+            supplied = self.headers.get(
+                "X-Telegram-Bot-Api-Secret-Token", ""
+            )
+            if not secrets.compare_digest(
+                supplied, TELEGRAM_WEBHOOK_SECRET
+            ):
                 self._json({"error": "unauthorized"}, 401)
                 return
 
@@ -268,21 +335,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(exc)}, 500)
             return
 
-        if parsed.path == "/control/publish":
-            supplied = self.headers.get("X-Control-Secret", "")
-            if not CONTROL_API_SECRET or not secrets.compare_digest(
-                supplied, CONTROL_API_SECRET
-            ):
-                self._json({"error": "unauthorized"}, 401)
-                return
-
-            try:
-                payload = json.loads(body.decode("utf-8"))
-                self._json({"ok": True, "payload": payload})
-            except Exception as exc:
-                self._json({"error": str(exc)}, 400)
-            return
-
         self._json({"error": "not_found"}, 404)
 
     def log_message(self, fmt: str, *args) -> None:
@@ -290,15 +342,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    public_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
-    if public_url:
-        register_webhook(public_url)
-    else:
-        log.warning(
-            "RENDER_EXTERNAL_URL is not available yet; webhook can be registered after deployment."
-        )
-
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    public_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+
+    if public_url:
+        try:
+            register_webhook(public_url)
+        except Exception:
+            log.exception("Initial Telegram webhook registration failed")
+
     log.info("HTTP server listening on 0.0.0.0:%s", PORT)
     server.serve_forever()
 
