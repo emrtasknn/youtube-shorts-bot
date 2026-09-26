@@ -968,7 +968,9 @@ def _visual_event_specificity(
     anchor_coverage = anchor_hits / max(len(anchors), 1)
     fact_coverage = fact_hits / max(len(fact_tokens), 1)
 
-    specificity = 0.55 * fact_coverage + 0.45 * anchor_coverage
+    # The concrete visual fact is the strongest signal; event anchors add
+    # provenance without overpowering the fact itself.
+    specificity = 0.65 * fact_coverage + 0.35 * anchor_coverage
     generic_terms = {
         "landscape", "forest", "sky", "clouds", "mountain", "ocean", "sunset",
         "sunrise", "portrait", "person", "man", "woman", "nature", "desert",
