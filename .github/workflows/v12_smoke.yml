@@ -105,6 +105,40 @@ jobs:
           assert "_visual_event_specificity" in event_memory_text, "Event specificity helper missing"
           assert "_visual_information_density" in event_memory_text, "Visual information density helper missing"
           assert "visual_fact" in event_memory_text, "Visual fact query integration missing"
+          assert "visual_action" in pipeline_text, "Visual action schema missing"
+          assert "scene_context" in pipeline_text, "Scene context schema missing"
+          assert "shot_type" in pipeline_text, "Shot type schema missing"
+          assert "composition" in pipeline_text, "Composition schema missing"
+          assert "visual_action" in event_memory_text, "Visual action scoring missing"
+
+          action_intent = {
+              "primary_subject": "historical marathon runner",
+              "visual_type": "action",
+              "visual_action": "runner eating an apple beside the race route",
+              "scene_context": "1904 St Louis marathon race route",
+              "shot_type": "medium action shot",
+              "composition": "runner beside roadside tree with fruit and race road visible",
+              "visual_entities": ["marathon runner", "apple"],
+              "must_show": ["runner", "race road", "apple"],
+              "avoid": ["isolated apple", "modern runner"],
+          }
+          _, action_meta = event_memory._visual_intent_match_score(
+              "Felix Carvajal eating apple during 1904 Olympic marathon",
+              "runner eating an apple beside the St Louis race route",
+              "1904 Olympic marathon runner eating apple beside race route",
+              "The 1904 Olympic Marathon",
+              action_intent,
+          )
+          assert action_meta["intent_pass"], "Action-specific historical visual should pass"
+
+          _, object_meta = event_memory._visual_intent_match_score(
+              "Red apple on wooden table",
+              "close-up of a red apple",
+              "1904 Olympic marathon runner eating apple beside race route",
+              "The 1904 Olympic Marathon",
+              action_intent,
+          )
+          assert not object_meta["intent_pass"], "Isolated object must not satisfy an action scene"
 
           print("V1.4.1 smoke tests passed")
           PY
