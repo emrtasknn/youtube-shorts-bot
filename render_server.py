@@ -74,7 +74,7 @@ def github_dispatch(workflow_file: str, inputs: dict) -> None:
         )
 
 
-def download_run_artifact(source_run_id: str, source_run_number: str) -> Path:
+def download_run_artifact(source_run_id: str, source_run_number: str) -> tuple[Path, Path]:
     artifact_name = f"shorts-run-{source_run_number}"
     response = requests.get(
         f"https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{source_run_id}/artifacts",
@@ -125,7 +125,7 @@ def download_run_artifact(source_run_id: str, source_run_number: str) -> Path:
         video_path,
         metadata_path,
     )
-    return video_path
+    return video_path, metadata_path
 
 
 def notify(chat_id: str, text: str) -> None:
@@ -163,12 +163,36 @@ def remove_buttons(chat_id: str, message_id: int) -> None:
 
 def process_publish(source_run_id: str, source_run_number: str, chat_id: str) -> None:
     try:
-        video_path = download_run_artifact(source_run_id, source_run_number)
+        video_path, metadata_path = download_run_artifact(
+            source_run_id, source_run_number
+        )
+
+        # Reuse the topic/script metadata produced by pipeline.py so the
+        # published YouTube Short keeps the actual generated title and
+        # description instead of falling back to a generic default.
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        event_record = metadata.get("event_record") or {}
+        scenes = metadata.get("scenes") or []
+        full_text = " ".join(
+            str(scene.get("narration", "")).strip()
+            for scene in scenes
+            if scene.get("narration")
+        ).strip()
+
+        default_title = os.getenv(
+            "YOUTUBE_DEFAULT_TITLE", "Tarihin Bilinmeyen Gizemi"
+        )
+        topic = {
+            "title": event_record.get("canonical_title") or default_title,
+            "hook_question": "",
+        }
 
         # youtube_uploader supports direct OAuth refresh-token credentials
         # through Render environment variables.
         result = youtube_uploader.upload_shorts_video(
             video_path=video_path,
+            topic=topic,
+            full_text=full_text,
             privacy_status=os.getenv("YOUTUBE_PRIVACY_STATUS"),
         )
 
