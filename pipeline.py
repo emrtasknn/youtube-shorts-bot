@@ -1731,13 +1731,24 @@ def run(auto_publish: bool | None = None):
     for i, scene in enumerate(scenes, 1):
         visual_intent = scene.get("visual_intent", {})
         terms = list(visual_intent.get("search_queries", []))
+        event_context = {
+            "title": topic_compat["title"],
+            "aliases": candidate.get("aliases", []),
+            "location": candidate.get("location", ""),
+            "entities": candidate.get("entities", []),
+            "date": candidate.get("date", ""),
+        }
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
             event_title=topic_compat["title"],
             excluded_urls=used_visual_urls,
             visual_intent=visual_intent,
+            event_context=event_context,
         )
+        v_source["visual_fact"] = scene.get("visual_fact", "")
+        v_source["visual_role"] = scene.get("visual_role", "")
+
         visual_sources.append(v_source)
         resolved_url = v_source.get("image_url")
         if resolved_url and resolved_url not in used_visual_urls:
@@ -1798,11 +1809,14 @@ def run(auto_publish: bool | None = None):
             intent = scene.get("visual_intent", {})
             ai_prompt = (
                 f"{scene['image_prompt']} "
+                f"Visual fact to depict: {scene.get('visual_fact', '')}. "
+                f"Visual role: {scene.get('visual_role', '')}. "
                 f"Primary subject: {intent.get('primary_subject', '')}. "
                 f"Must visibly include: {', '.join(intent.get('must_show', []))}. "
                 f"Avoid: {', '.join(intent.get('avoid', []))}. "
                 f"Historical event context: {topic_compat['title']}. "
-                "The image must depict the specific narrated subject, not a generic landscape or stock scene. "
+                "Depict the concrete visual fact first; do not substitute a generic landscape, generic portrait, or keyword collage. "
+                "The main historical subject must be clearly visible and event-specific. "
                 "No modern objects, no text, no watermark, documentary historical reconstruction."
             )
             download_ai_image(ai_prompt, image_path)
