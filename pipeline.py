@@ -1925,6 +1925,11 @@ def run(auto_publish: bool | None = None):
     scene_timings = calculate_scene_timings(scenes, words_data, total_duration)
     log.info("Scene timings: %s", [(round(a, 2), round(b, 2)) for a, b in scene_timings])
 
+    # Recompute storyboard QA in run() so it remains available for metadata
+    # even when the script is regenerated during TTS duration correction.
+    storyboard_qa = validate_visual_storyboard(scenes)
+    log.info("Visual storyboard QA (final scenes): %s", storyboard_qa)
+
     log.info("5/8 Resolving visual sources and generating images")
     scene_clips = []
     
