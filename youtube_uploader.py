@@ -30,7 +30,11 @@ def build_shorts_metadata(
     privacy_status: str = "public",
 ) -> dict:
     """Build YouTube Shorts optimized metadata dictionary."""
-    raw_title = topic.get("title", "Tarihin Bilinmeyen Gizemi") if topic else "Tarihin Bilinmeyen Gizemi"
+    raw_title = (
+        topic.get("youtube_title")
+        or topic.get("title", "Tarihin Bilinmeyen Gizemi")
+        or "Tarihin Bilinmeyen Gizemi"
+    ) if topic else "Tarihin Bilinmeyen Gizemi"
     hook_question = topic.get("hook_question", "") if topic else ""
 
     # YouTube max title length is 100 chars
