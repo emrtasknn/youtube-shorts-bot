@@ -184,9 +184,19 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} is not an object")
         narration = str(scene.get("narration", "")).strip()
         image_prompt = str(scene.get("image_prompt", "")).strip()
+        visual_fact = str(scene.get("visual_fact", "")).strip()
+        visual_role = str(scene.get("visual_role", "")).strip().lower()
         visual_intent = scene.get("visual_intent")
         if not narration or not image_prompt:
             raise ValueError(f"Scene {i} is missing narration or image_prompt")
+        if not visual_fact:
+            raise ValueError(f"Scene {i} is missing visual_fact")
+        allowed_visual_roles = {
+            "evidence", "mechanism", "reconstruction", "context_map",
+            "person_or_entity", "aftermath", "atmosphere"
+        }
+        if visual_role not in allowed_visual_roles:
+            raise ValueError(f"Scene {i} has invalid visual_role: {visual_role}")
         if not isinstance(visual_intent, dict):
             raise ValueError(f"Scene {i} is missing visual_intent")
         required_intent = ["primary_subject", "visual_type", "must_show", "avoid", "search_queries"]
@@ -197,6 +207,10 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} visual_intent must_show/avoid must be lists")
         if not isinstance(visual_intent.get("search_queries"), list):
             raise ValueError(f"Scene {i} visual_intent search_queries must be a list")
+        if str(visual_intent.get("visual_fact", "")).strip() != visual_fact:
+            raise ValueError(f"Scene {i} visual_intent.visual_fact must match scene visual_fact")
+        if str(visual_intent.get("visual_role", "")).strip().lower() != visual_role:
+            raise ValueError(f"Scene {i} visual_intent.visual_role must match scene visual_role")
         word_count = len(narration.split())
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
@@ -204,6 +218,8 @@ def validate_script(data: dict) -> list[dict]:
         cleaned.append({
             "narration": narration,
             "image_prompt": image_prompt,
+            "visual_fact": visual_fact,
+            "visual_role": visual_role,
             "visual_intent": visual_intent,
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
