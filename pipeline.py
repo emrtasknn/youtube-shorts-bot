@@ -1521,8 +1521,9 @@ def send_to_telegram(
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    # Keep the local state for compatibility, and mirror it to the persistent
-    # Telegram control service so buttons continue working after this runner exits.
+    # Keep local state for compatibility/tests. The production publish path
+    # uses the GitHub run ID/number embedded in the Telegram callback data,
+    # so it does not depend on the ephemeral Actions runner filesystem.
     save_approval_state(run_id, approval_state)
     register_telegram_control_state(approval_state)
 
