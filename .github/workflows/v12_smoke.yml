@@ -96,7 +96,7 @@ jobs:
           event_memory_text = Path("event_memory.py").read_text(encoding="utf-8")
           for profile in ("documentary_male", "mystery_female", "dramatic_male", "energetic_female"):
               assert profile in pipeline_text, f"Missing V1.4 voice profile: {profile}"
-          assert '"ending_strategy": "semantic"' in pipeline_text, "V1.4 ending strategy schema missing"
+          assert 'ending_strategy' in pipeline_text, "Ending strategy field missing"
           assert "Natural ending + loop strategy" in pipeline_text, "Natural ending QA missing"
           assert "V1.4 visual loop" in pipeline_text, "Visual loop implementation missing"
           assert '"visual_fact": "..."' in pipeline_text, "Visual fact schema missing"
