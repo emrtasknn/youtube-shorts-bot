@@ -1298,33 +1298,71 @@ def build_visual_search_queries(
 
 
 def resolve_visual_source(
-    scene_description: str, visual_search_terms: list[str], event_title: str = "",
-    excluded_urls: Optional[list[str]] = None, visual_intent: Optional[dict] = None,
+    scene_description: str,
+    visual_search_terms: list[str],
+    event_title: str = "",
+    excluded_urls: Optional[list[str]] = None,
+    visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> dict:
-    """Resolve visual: relevant real source first, otherwise scene-specific AI."""
+    """Resolve visual: scene-specific real source first, otherwise targeted AI reconstruction."""
     excluded = set(excluded_urls or [])
     intent = visual_intent or {}
     queries = build_visual_search_queries(scene_description, intent, event_title)
+
     for query in queries:
         result = search_wikimedia_image(
-            query, event_title, list(excluded), min_relevance=0.65, visual_intent=intent
+            query,
+            event_title,
+            list(excluded),
+            min_relevance=0.65,
+            visual_intent=intent,
+            event_context=event_context,
         )
         if result:
-            log.info("VISUAL: %s → Wikimedia %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
+            if event_context and str(intent.get("visual_role", "")).lower() != "atmosphere":
+                if float(result.get("event_specificity", 0)) < 0.35:
+                    continue
+            log.info(
+                "VISUAL: %s → Wikimedia %s relevance=%.2f specificity=%.2f",
+                scene_description[:40],
+                result.get("title", ""),
+                result.get("relevance_score", 0),
+                result.get("event_specificity", 0),
+            )
             return result
+
     result = search_openverse_image(
-        queries, list(excluded), min_relevance=0.65,
-        event_title=event_title, visual_intent=intent
+        queries,
+        list(excluded),
+        min_relevance=0.65,
+        event_title=event_title,
+        visual_intent=intent,
+        event_context=event_context,
     )
     if result:
-        log.info("VISUAL: %s → Openverse %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
+        log.info(
+            "VISUAL: %s → Openverse %s relevance=%.2f specificity=%.2f",
+            scene_description[:40],
+            result.get("title", ""),
+            result.get("relevance_score", 0),
+            result.get("event_specificity", 0),
+        )
         return result
-    log.info("VISUAL: %s → AI reconstruction; no relevant real visual found", scene_description[:40])
+
+    log.info(
+        "VISUAL: %s → AI reconstruction; no sufficiently specific real visual found",
+        scene_description[:40],
+    )
     return {
         "source_type": "ai_reconstruction",
-        "note": "No sufficiently relevant real visual found.",
+        "note": "No sufficiently relevant/specific real visual found.",
         "search_queries": queries,
         "relevance_threshold": 0.65,
+        "event_specificity": 0.0,
+        "information_density": 0.0,
+        "visual_fact": intent.get("visual_fact", ""),
+        "visual_role": intent.get("visual_role", ""),
     }
 
 
