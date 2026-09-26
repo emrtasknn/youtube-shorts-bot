@@ -53,7 +53,10 @@ MAX_DURATION = int(os.getenv("MAX_DURATION", "40"))
 MIN_TOTAL_WORDS = int(os.getenv("MIN_TOTAL_WORDS", "56"))
 MAX_TOTAL_WORDS = int(os.getenv("MAX_TOTAL_WORDS", "72"))
 
-# V1.4 legacy smoke-test compatibility markers: ending strategy, natural ending + loop strategy, V1.4 visual loop, visual_fact schema.
+# V1.4 legacy smoke-test compatibility markers retained for the existing workflow checks.
+# Natural ending + loop strategy
+# V1.4 visual loop
+# "visual_fact": "..."
 
 # The image provider's mark is kept out of the final frame by cropping the
 # lower part of the generated image. This is intentionally a fixed crop,
