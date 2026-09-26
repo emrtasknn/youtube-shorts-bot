@@ -1447,12 +1447,37 @@ def update_approval_status(run_id: str, status: str, extra: dict | None = None, 
 
 
 def build_telegram_markup(run_id: str) -> types.InlineKeyboardMarkup:
-    """Build the 4-button interactive Human-in-the-Loop control keyboard."""
+    """Build the Telegram approval keyboard.
+
+    Cloud runs include the GitHub Actions run ID/number in callback data so
+    the Render control service can locate the immutable workflow artifact
+    without relying on the ephemeral Actions runner filesystem.
+    """
     markup = types.InlineKeyboardMarkup(row_width=2)
-    btn_publish = types.InlineKeyboardButton("✅ YAYINLA", callback_data=f"publish:{run_id}")
-    btn_regen = types.InlineKeyboardButton("🔄 YENİDEN ÜRET", callback_data=f"regen:{run_id}")
-    btn_cancel = types.InlineKeyboardButton("❌ İPTAL", callback_data=f"cancel:{run_id}")
-    btn_script = types.InlineKeyboardButton("📜 Senaryoyu Oku", callback_data=f"script:{run_id}")
+
+    github_run_id = os.getenv("GITHUB_RUN_ID", "").strip()
+    github_run_number = os.getenv("GITHUB_RUN_NUMBER", "").strip()
+
+    cloud_ref = (
+        f"{github_run_id}:{github_run_number}"
+        if github_run_id and github_run_number
+        else run_id
+    )
+    run_ref = github_run_id or run_id
+
+    btn_publish = types.InlineKeyboardButton(
+        "✅ YAYINLA", callback_data=f"publish:{cloud_ref}"
+    )
+    btn_regen = types.InlineKeyboardButton(
+        "🔄 YENİDEN ÜRET", callback_data=f"regen:{run_ref}"
+    )
+    btn_cancel = types.InlineKeyboardButton(
+        "❌ İPTAL", callback_data=f"cancel:{run_ref}"
+    )
+    btn_script = types.InlineKeyboardButton(
+        "📜 Senaryoyu Oku", callback_data=f"script:{run_ref}"
+    )
+
     markup.add(btn_publish, btn_regen)
     markup.add(btn_cancel, btn_script)
     return markup
