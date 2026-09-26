@@ -1172,6 +1172,7 @@ def search_openverse_image(
     min_relevance: float = 0.65,
     event_title: str = "",
     visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> Optional[dict]:
     """Find an openly licensed image and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1192,8 +1193,14 @@ def search_openverse_image(
                 url = item.get("url", "")
                 if not url or url in excluded:
                     continue
-                haystack = " ".join([str(item.get("title", "")), str(item.get("description", "")),
-                    " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", []))])
+                haystack = " ".join([
+                    str(item.get("title", "")),
+                    str(item.get("description", "")),
+                    " ".join(
+                        str(t.get("name", "")) if isinstance(t, dict) else str(t)
+                        for t in item.get("tags", [])
+                    ),
+                ])
                 score = _visual_relevance(query, haystack)
                 intent_score, intent_meta = _visual_intent_match_score(
                     str(item.get("title", "")), haystack, query, event_title, visual_intent
@@ -1203,19 +1210,54 @@ def search_openverse_image(
                 score = max(score, intent_score)
                 if score < min_relevance:
                     continue
-                if best is None or score > best[0]:
-                    best = (score, item, query, intent_meta)
+
+                specificity = 0.0
+                specificity_meta = {}
+                density = 0.0
+                density_meta = {}
+                if event_context:
+                    specificity, specificity_meta = _visual_event_specificity(
+                        title=str(item.get("title", "")),
+                        description=haystack,
+                        visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                        event_title=event_context.get("title", event_title),
+                        event_aliases=event_context.get("aliases", []),
+                        event_location=event_context.get("location", ""),
+                        event_entities=event_context.get("entities", []),
+                        event_date=event_context.get("date", ""),
+                    )
+                    density, density_meta = _visual_information_density(
+                        title=str(item.get("title", "")),
+                        description=haystack,
+                        visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                        must_show=visual_intent.get("must_show", []) if visual_intent else [],
+                    )
+                    if visual_intent and str(visual_intent.get("visual_role", "")).lower() != "atmosphere":
+                        if specificity < 0.35:
+                            continue
+
+                rank_score = 0.50 * score + 0.30 * specificity + 0.20 * density if event_context else score
+                if best is None or rank_score > best[0]:
+                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta)
+
         if best:
-            score, item, query, intent_meta = best
+            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
-                "image_url": item.get("url", ""), "title": item.get("title", ""),
+                "image_url": item.get("url", ""),
+                "title": item.get("title", ""),
                 "license": item.get("license", ""),
                 "attribution": item.get("attribution") or item.get("creator", ""),
-                "creator": item.get("creator", ""), "provider": item.get("provider", ""),
-                "relevance_score": round(score, 3), "search_query": query,
+                "creator": item.get("creator", ""),
+                "provider": item.get("provider", ""),
+                "relevance_score": round(score, 3),
+                "search_query": query,
                 "intent_match": intent_meta,
+                "event_specificity": round(specificity, 3),
+                "event_specificity_meta": specificity_meta,
+                "information_density": round(density, 3),
+                "information_density_meta": density_meta,
             }
     except Exception as exc:
         log.debug("Openverse search failed: %s", exc)
