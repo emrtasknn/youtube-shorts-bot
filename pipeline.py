@@ -569,12 +569,19 @@ Kurallar:
 9. Yedi sahnede farklı görsel arketipler kullan: hook/close-up, wide establishing, artifact/document, map/diagram, crowd/action, location/detail, archival aftermath.
 10. Görsel promptlarda "same woman", "same man", "same character" veya karakter sürekliliği isteme. Yalnızca olayın gerçek kişilerinin görsel olarak zorunlu olduğu sahnede kişi göster.
 11. Modern stok estetiği yerine döneme uygun tarihsel/arkeolojik belgesel estetiğini tercih et.
-12. Her sahne için visual_intent üret. visual_intent, narration'ın görsel karşılığını açıkça tanımlamalı.
-13. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
-14. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
-15. search_queries, doğrudan sahnenin konusu için 2-4 spesifik tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
-16. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
-17. Gerçek görsel bulunamayacaksa image_prompt, aynı görsel niyetini birebir canlandıran tarihsel rekonstrüksiyon olmalı.
+12. Her sahne için visual_fact ve visual_intent üret.
+13. visual_fact, anlatılan cümlenin ekranda gösterilecek SOMUT tarihsel bilgisidir. Bir atmosfer, duygu veya genel konu değildir.
+14. visual_role, görselin rolünü belirtmeli: evidence, mechanism, reconstruction, context_map, person_or_entity, aftermath veya atmosphere.
+15. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
+16. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
+17. search_queries, visual_fact ve olayın spesifik kimliği etrafında 2-4 tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
+18. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
+19. "80 milyon ağaç devrildi" anlatılıyorsa normal orman değil devrilmiş/hasar görmüş ağaçlar veya blast pattern hedefle.
+20. "atmosferde hava patlaması" anlatılıyorsa generic Earth/sunset değil giriş yapan gök cismi, atmosferik patlama veya şok dalgası göster.
+21. Belirli bir kişi/kurum adı anlatılıyorsa generic person kullanma; gerçek arşiv görseli veya açıkça hedeflenmiş historical reconstruction oluştur.
+22. atmosphere yalnızca geçiş/duygu amacıyla kullanılabilir; ana tarihsel bilgi taşıyan sahnelerde evidence/mechanism/reconstruction tercih et.
+23. Görsel arketipleri factual intent'i ezmemeli. Metin harita gerektirmiyorsa sırf çeşitlilik için map kullanma.
+24. AI fallback, visual_fact'i birebir görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
 
 Şema:
 {{
@@ -582,7 +589,11 @@ Kurallar:
     {{
       "narration": "...",
       "image_prompt": "...",
+      "visual_fact": "...",
+      "visual_role": "evidence",
       "visual_intent": {{
+        "visual_fact": "...",
+        "visual_role": "evidence",
         "primary_subject": "...",
         "visual_type": "historical_photo/artifact/document/map/person/location/crowd/action/reconstruction",
         "must_show": ["somut unsur 1", "somut unsur 2"],
