@@ -178,6 +178,42 @@ export default {
         return json({ ok: true, service: "telegram-control" });
       }
 
+      if (request.method === "GET" && url.pathname === "/github-check") {
+        const checkUrl = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/publish_short.yml`;
+        const res = await fetch(checkUrl, {
+          headers: {
+            "Accept": "application/vnd.github+json",
+            "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+            "X-GitHub-Api-Version": "2026-03-10",
+            "User-Agent": "youtube-shorts-control",
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          return json({
+            ok: true,
+            github_status: res.status,
+            repository: env.GITHUB_REPO,
+            workflow: data.path || "publish_short.yml",
+            state: data.state || null,
+          });
+        }
+
+        return json({
+          ok: false,
+          github_status: res.status,
+          repository: env.GITHUB_REPO,
+          reason: res.status === 401
+            ? "GitHub token is invalid or expired."
+            : res.status === 403
+              ? "GitHub token is valid but lacks required permission."
+              : res.status === 404
+                ? "Repository/workflow is not accessible with this token."
+                : "GitHub API request failed.",
+        }, 502);
+      }
+
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
       const secret = request.headers.get("X-Control-Secret");
