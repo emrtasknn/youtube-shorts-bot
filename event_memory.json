@@ -490,5 +490,41 @@
     "created_at": "2026-09-26T12:01:02",
     "status": "used",
     "completed_at": "2026-09-26T12:13:13"
+  },
+  {
+    "event_id": "evt_088bb4b043f2",
+    "canonical_title": "The Cadaver Synod",
+    "aliases": [
+      "Ceset Sinodu",
+      "Papa Formosus yargılaması"
+    ],
+    "date": "897 AD",
+    "date_normalized": "897",
+    "location": "Rome",
+    "entities": [
+      "Pope Stephen VI",
+      "Pope Formosus"
+    ],
+    "event_summary": "Pope Stephen VI exhumed his predecessor's corpse, dressed it in papal robes, and put it on trial for perjury.",
+    "core_facts": [
+      "Papa VI. Stephen, selefi Papa Formosus'un cesedini mezarından çıkarttırarak 897 yılında yargılamıştır.",
+      "Formosus'un cesedi papalık cübbeleri giydirilerek bir tahta oturtulmuştur.",
+      "Yargılama sonucunda Formosus suçlu bulunmuş, yeminini bozmakla itham edilmiş ve kutsamaları iptal edilmiştir.",
+      "Formosus'un cesedinden papalık yüzüğünü taktığı parmakları kesilmiş ve bedeni Tiber Nehri'ne atılmıştır.",
+      "VI. Stephen, bu olaydan kısa süre sonra görevden alınmış ve hapishanede boğularak öldürülmüştür."
+    ],
+    "claims": [
+      "Yargılama sırasında cesedin gerçekten konuşabildiğine dair bazı ortaçağ kroniklerinde geçen iddiaların güvenilirliği.",
+      "VI. Stephen'ın bu yargılamayı kişisel bir kin mi yoksa Spoleto düklerinin siyasi baskısı altında mı gerçekleştirdiği."
+    ],
+    "sources": [
+      "Liudprand of Cremona, 'Antapodosis'",
+      "Catholic Encyclopedia, 'Synod of the Corpse'",
+      "Ferdinand Gregorovius, 'History of the City of Rome in the Middle Ages'"
+    ],
+    "first_video_id": "run_20260926_140229",
+    "created_at": "2026-09-26T13:51:45",
+    "status": "used",
+    "completed_at": "2026-09-26T14:02:29"
   }
 ]
