@@ -938,6 +938,74 @@ def _visual_tokens(text: str) -> set[str]:
     }
 
 
+
+def _visual_event_specificity(
+    title: str,
+    description: str = "",
+    visual_fact: str = "",
+    event_title: str = "",
+    event_aliases: Optional[list[str]] = None,
+    event_location: str = "",
+    event_entities: Optional[list[str]] = None,
+    event_date: str = "",
+) -> tuple[float, dict]:
+    """Estimate whether an asset is specific to this historical event.
+
+    Metadata-based only: title/description are inspected; image pixels are not.
+    """
+    hay = _visual_tokens(f"{title} {description}")
+    anchor_groups = [
+        _visual_tokens(event_title),
+        *[_visual_tokens(x) for x in (event_aliases or [])],
+        _visual_tokens(event_location),
+        _visual_tokens(" ".join(event_entities or [])),
+        _visual_tokens(event_date),
+    ]
+    anchors = set().union(*anchor_groups) if anchor_groups else set()
+    fact_tokens = _visual_tokens(visual_fact)
+    anchor_hits = len(anchors & hay)
+    fact_hits = len(fact_tokens & hay)
+    anchor_coverage = anchor_hits / max(len(anchors), 1)
+    fact_coverage = fact_hits / max(len(fact_tokens), 1)
+
+    specificity = 0.55 * fact_coverage + 0.45 * anchor_coverage
+    generic_terms = {
+        "landscape", "forest", "sky", "clouds", "mountain", "ocean", "sunset",
+        "sunrise", "portrait", "person", "man", "woman", "nature", "desert",
+        "atmosphere", "dramatic", "cinematic", "beautiful", "scenery",
+    }
+    generic_hits = len(generic_terms & hay)
+    generic_penalty = min(0.20, 0.04 * generic_hits)
+    specificity = max(0.0, min(1.0, specificity - generic_penalty))
+
+    return round(specificity, 3), {
+        "anchor_hits": anchor_hits,
+        "anchor_coverage": round(anchor_coverage, 3),
+        "fact_hits": fact_hits,
+        "fact_coverage": round(fact_coverage, 3),
+        "generic_hits": generic_hits,
+        "generic_penalty": round(generic_penalty, 3),
+    }
+
+
+def _visual_information_density(
+    title: str,
+    description: str = "",
+    visual_fact: str = "",
+    must_show: Optional[list[str]] = None,
+) -> tuple[float, dict]:
+    """Estimate how much of the planned visual fact is represented in metadata."""
+    hay = _visual_tokens(f"{title} {description}")
+    fact_tokens = _visual_tokens(visual_fact)
+    show_tokens = _visual_tokens(" ".join(must_show or []))
+    fact_coverage = len(fact_tokens & hay) / max(len(fact_tokens), 1)
+    show_coverage = len(show_tokens & hay) / max(len(show_tokens), 1)
+    density = 0.60 * fact_coverage + 0.40 * show_coverage
+    return round(density, 3), {
+        "fact_coverage": round(fact_coverage, 3),
+        "must_show_coverage": round(show_coverage, 3),
+    }
+
 def _visual_intent_match_score(
     title: str,
     description: str,
