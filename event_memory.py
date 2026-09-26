@@ -938,6 +938,74 @@ def _visual_tokens(text: str) -> set[str]:
     }
 
 
+
+def _visual_event_specificity(
+    title: str,
+    description: str = "",
+    visual_fact: str = "",
+    event_title: str = "",
+    event_aliases: Optional[list[str]] = None,
+    event_location: str = "",
+    event_entities: Optional[list[str]] = None,
+    event_date: str = "",
+) -> tuple[float, dict]:
+    """Estimate whether an asset is specific to this historical event.
+
+    Metadata-based only: title/description are inspected; image pixels are not.
+    """
+    hay = _visual_tokens(f"{title} {description}")
+    anchor_groups = [
+        _visual_tokens(event_title),
+        *[_visual_tokens(x) for x in (event_aliases or [])],
+        _visual_tokens(event_location),
+        _visual_tokens(" ".join(event_entities or [])),
+        _visual_tokens(event_date),
+    ]
+    anchors = set().union(*anchor_groups) if anchor_groups else set()
+    fact_tokens = _visual_tokens(visual_fact)
+    anchor_hits = len(anchors & hay)
+    fact_hits = len(fact_tokens & hay)
+    anchor_coverage = anchor_hits / max(len(anchors), 1)
+    fact_coverage = fact_hits / max(len(fact_tokens), 1)
+
+    specificity = 0.55 * fact_coverage + 0.45 * anchor_coverage
+    generic_terms = {
+        "landscape", "forest", "sky", "clouds", "mountain", "ocean", "sunset",
+        "sunrise", "portrait", "person", "man", "woman", "nature", "desert",
+        "atmosphere", "dramatic", "cinematic", "beautiful", "scenery",
+    }
+    generic_hits = len(generic_terms & hay)
+    generic_penalty = min(0.20, 0.04 * generic_hits)
+    specificity = max(0.0, min(1.0, specificity - generic_penalty))
+
+    return round(specificity, 3), {
+        "anchor_hits": anchor_hits,
+        "anchor_coverage": round(anchor_coverage, 3),
+        "fact_hits": fact_hits,
+        "fact_coverage": round(fact_coverage, 3),
+        "generic_hits": generic_hits,
+        "generic_penalty": round(generic_penalty, 3),
+    }
+
+
+def _visual_information_density(
+    title: str,
+    description: str = "",
+    visual_fact: str = "",
+    must_show: Optional[list[str]] = None,
+) -> tuple[float, dict]:
+    """Estimate how much of the planned visual fact is represented in metadata."""
+    hay = _visual_tokens(f"{title} {description}")
+    fact_tokens = _visual_tokens(visual_fact)
+    show_tokens = _visual_tokens(" ".join(must_show or []))
+    fact_coverage = len(fact_tokens & hay) / max(len(fact_tokens), 1)
+    show_coverage = len(show_tokens & hay) / max(len(show_tokens), 1)
+    density = 0.60 * fact_coverage + 0.40 * show_coverage
+    return round(density, 3), {
+        "fact_coverage": round(fact_coverage, 3),
+        "must_show_coverage": round(show_coverage, 3),
+    }
+
 def _visual_intent_match_score(
     title: str,
     description: str,
@@ -1004,6 +1072,7 @@ def search_wikimedia_image(
     excluded_urls: Optional[list[str]] = None,
     min_relevance: float = 0.65,
     visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> Optional[dict]:
     """Search Wikimedia Commons and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1029,9 +1098,30 @@ def search_wikimedia_image(
             )
             if visual_intent and not intent_meta.get("intent_pass"):
                 continue
-            ranked.append((max(score, intent_score), item, intent_meta))
+            specificity = 0.0
+            specificity_meta = {}
+            density = 0.0
+            density_meta = {}
+            if event_context:
+                specificity, specificity_meta = _visual_event_specificity(
+                    title=title,
+                    description=snippet,
+                    visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                    event_title=event_context.get("title", event_title),
+                    event_aliases=event_context.get("aliases", []),
+                    event_location=event_context.get("location", ""),
+                    event_entities=event_context.get("entities", []),
+                    event_date=event_context.get("date", ""),
+                )
+                density, density_meta = _visual_information_density(
+                    title=title,
+                    description=snippet,
+                    visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                    must_show=visual_intent.get("must_show", []) if visual_intent else [],
+                )
+            ranked.append((max(score, intent_score), item, intent_meta, specificity, specificity_meta, density, density_meta))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for score, item, intent_meta in ranked[:5]:
+        for score, item, intent_meta, specificity, specificity_meta, density, density_meta in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1066,6 +1156,10 @@ def search_wikimedia_image(
                     "license": meta.get("LicenseShortName", {}).get("value", ""),
                     "attribution": author, "relevance_score": score, "search_query": search_term,
                     "intent_match": intent_meta,
+                    "event_specificity": specificity,
+                    "event_specificity_meta": specificity_meta,
+                    "information_density": density,
+                    "information_density_meta": density_meta,
                 }
     except Exception as exc:
         log.debug("Wikimedia search failed for %r: %s", search_term, exc)
@@ -1078,6 +1172,7 @@ def search_openverse_image(
     min_relevance: float = 0.65,
     event_title: str = "",
     visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> Optional[dict]:
     """Find an openly licensed image and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1098,8 +1193,14 @@ def search_openverse_image(
                 url = item.get("url", "")
                 if not url or url in excluded:
                     continue
-                haystack = " ".join([str(item.get("title", "")), str(item.get("description", "")),
-                    " ".join(str(t.get("name", "")) if isinstance(t, dict) else str(t) for t in item.get("tags", []))])
+                haystack = " ".join([
+                    str(item.get("title", "")),
+                    str(item.get("description", "")),
+                    " ".join(
+                        str(t.get("name", "")) if isinstance(t, dict) else str(t)
+                        for t in item.get("tags", [])
+                    ),
+                ])
                 score = _visual_relevance(query, haystack)
                 intent_score, intent_meta = _visual_intent_match_score(
                     str(item.get("title", "")), haystack, query, event_title, visual_intent
@@ -1109,75 +1210,159 @@ def search_openverse_image(
                 score = max(score, intent_score)
                 if score < min_relevance:
                     continue
-                if best is None or score > best[0]:
-                    best = (score, item, query, intent_meta)
+
+                specificity = 0.0
+                specificity_meta = {}
+                density = 0.0
+                density_meta = {}
+                if event_context:
+                    specificity, specificity_meta = _visual_event_specificity(
+                        title=str(item.get("title", "")),
+                        description=haystack,
+                        visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                        event_title=event_context.get("title", event_title),
+                        event_aliases=event_context.get("aliases", []),
+                        event_location=event_context.get("location", ""),
+                        event_entities=event_context.get("entities", []),
+                        event_date=event_context.get("date", ""),
+                    )
+                    density, density_meta = _visual_information_density(
+                        title=str(item.get("title", "")),
+                        description=haystack,
+                        visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
+                        must_show=visual_intent.get("must_show", []) if visual_intent else [],
+                    )
+                    if visual_intent and str(visual_intent.get("visual_role", "")).lower() != "atmosphere":
+                        if specificity < 0.35:
+                            continue
+
+                rank_score = 0.50 * score + 0.30 * specificity + 0.20 * density if event_context else score
+                if best is None or rank_score > best[0]:
+                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta)
+
         if best:
-            score, item, query, intent_meta = best
+            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
-                "image_url": item.get("url", ""), "title": item.get("title", ""),
+                "image_url": item.get("url", ""),
+                "title": item.get("title", ""),
                 "license": item.get("license", ""),
                 "attribution": item.get("attribution") or item.get("creator", ""),
-                "creator": item.get("creator", ""), "provider": item.get("provider", ""),
-                "relevance_score": round(score, 3), "search_query": query,
+                "creator": item.get("creator", ""),
+                "provider": item.get("provider", ""),
+                "relevance_score": round(score, 3),
+                "search_query": query,
                 "intent_match": intent_meta,
+                "event_specificity": round(specificity, 3),
+                "event_specificity_meta": specificity_meta,
+                "information_density": round(density, 3),
+                "information_density_meta": density_meta,
             }
     except Exception as exc:
         log.debug("Openverse search failed: %s", exc)
     return None
 
 
-def build_visual_search_queries(scene_description: str, visual_intent: dict, event_title: str = "") -> list[str]:
-    """Build precise scene-specific queries instead of searching raw narration."""
-    explicit = visual_intent.get("search_queries", []) if isinstance(visual_intent, dict) else []
-    must_show = visual_intent.get("must_show", []) if isinstance(visual_intent, dict) else []
-    primary = visual_intent.get("primary_subject", "") if isinstance(visual_intent, dict) else ""
+def build_visual_search_queries(
+    scene_description: str,
+    visual_intent: dict,
+    event_title: str = "",
+) -> list[str]:
+    """Build searches around the concrete visual fact, not narration keywords."""
+    intent = visual_intent if isinstance(visual_intent, dict) else {}
+    explicit = intent.get("search_queries", [])
+    visual_fact = str(intent.get("visual_fact", "")).strip()
+    must_show = intent.get("must_show", [])
+    primary = str(intent.get("primary_subject", "")).strip()
+
     queries = []
+    if visual_fact:
+        queries.append(f"{event_title} {visual_fact}".strip())
+    queries.extend(str(q).strip() for q in explicit if str(q).strip())
     if primary:
         queries.append(f"{event_title} {primary}".strip())
     if must_show:
         queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:3])).strip())
-    queries.extend(str(q).strip() for q in explicit if str(q).strip())
     if not queries:
         queries.append(f"{event_title} {scene_description[:100]}".strip())
+
     seen = set()
     unique = []
     for q in queries:
-        key = q.lower()
+        key = re.sub(r"\s+", " ", q.lower()).strip()
         if key not in seen:
-            seen.add(key); unique.append(q)
+            seen.add(key)
+            unique.append(q)
     return unique[:6]
 
 
 def resolve_visual_source(
-    scene_description: str, visual_search_terms: list[str], event_title: str = "",
-    excluded_urls: Optional[list[str]] = None, visual_intent: Optional[dict] = None,
+    scene_description: str,
+    visual_search_terms: list[str],
+    event_title: str = "",
+    excluded_urls: Optional[list[str]] = None,
+    visual_intent: Optional[dict] = None,
+    event_context: Optional[dict] = None,
 ) -> dict:
-    """Resolve visual: relevant real source first, otherwise scene-specific AI."""
+    """Resolve visual: scene-specific real source first, otherwise targeted AI reconstruction."""
     excluded = set(excluded_urls or [])
     intent = visual_intent or {}
     queries = build_visual_search_queries(scene_description, intent, event_title)
+
     for query in queries:
         result = search_wikimedia_image(
-            query, event_title, list(excluded), min_relevance=0.65, visual_intent=intent
+            query,
+            event_title,
+            list(excluded),
+            min_relevance=0.65,
+            visual_intent=intent,
+            event_context=event_context,
         )
         if result:
-            log.info("VISUAL: %s → Wikimedia %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
+            if event_context and str(intent.get("visual_role", "")).lower() != "atmosphere":
+                if float(result.get("event_specificity", 0)) < 0.35:
+                    continue
+            log.info(
+                "VISUAL: %s → Wikimedia %s relevance=%.2f specificity=%.2f",
+                scene_description[:40],
+                result.get("title", ""),
+                result.get("relevance_score", 0),
+                result.get("event_specificity", 0),
+            )
             return result
+
     result = search_openverse_image(
-        queries, list(excluded), min_relevance=0.65,
-        event_title=event_title, visual_intent=intent
+        queries,
+        list(excluded),
+        min_relevance=0.65,
+        event_title=event_title,
+        visual_intent=intent,
+        event_context=event_context,
     )
     if result:
-        log.info("VISUAL: %s → Openverse %s relevance=%.2f", scene_description[:40], result.get("title", ""), result.get("relevance_score", 0))
+        log.info(
+            "VISUAL: %s → Openverse %s relevance=%.2f specificity=%.2f",
+            scene_description[:40],
+            result.get("title", ""),
+            result.get("relevance_score", 0),
+            result.get("event_specificity", 0),
+        )
         return result
-    log.info("VISUAL: %s → AI reconstruction; no relevant real visual found", scene_description[:40])
+
+    log.info(
+        "VISUAL: %s → AI reconstruction; no sufficiently specific real visual found",
+        scene_description[:40],
+    )
     return {
         "source_type": "ai_reconstruction",
-        "note": "No sufficiently relevant real visual found.",
+        "note": "No sufficiently relevant/specific real visual found.",
         "search_queries": queries,
         "relevance_threshold": 0.65,
+        "event_specificity": 0.0,
+        "information_density": 0.0,
+        "visual_fact": intent.get("visual_fact", ""),
+        "visual_role": intent.get("visual_role", ""),
     }
 
 

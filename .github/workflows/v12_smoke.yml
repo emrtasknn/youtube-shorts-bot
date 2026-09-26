@@ -1,4 +1,4 @@
-name: V1.4 Smoke Tests
+name: V1.4.1 Smoke Tests
 
 on:
   push:
@@ -36,6 +36,31 @@ jobs:
           assert event_memory._visual_relevance("Emu War Lewis gun", "Lewis Gun during Emu War") >= 0.55
           assert event_memory._visual_relevance("10,000 rounds ammunition", "random desert landscape") < 0.55
 
+          specificity, spec_meta = event_memory._visual_event_specificity(
+              "Fallen trees in Tunguska blast zone",
+              "Tunguska Event Siberia fallen trees knocked down by blast wave",
+              "Tunguska blast wave knocked down fallen trees",
+              "The Tunguska Event",
+              ["Tunguska Olayı", "1908 Sibirya Patlaması"],
+              "Siberia, Russia",
+              ["Leonid Kulik"],
+              "1908",
+          )
+          assert specificity >= 0.70, f"Event-specific visual should score high: {specificity}"
+          assert spec_meta["fact_coverage"] > 0.0
+
+          generic_specificity, _ = event_memory._visual_event_specificity(
+              "Generic winter forest landscape",
+              "snowy forest and dramatic mountains at sunset",
+              "Tunguska blast wave knocked down fallen trees",
+              "The Tunguska Event",
+              ["Tunguska Olayı"],
+              "Siberia, Russia",
+              ["Leonid Kulik"],
+              "1908",
+          )
+          assert generic_specificity < specificity, "Generic atmosphere must score below event-specific evidence"
+
           _, map_meta = event_memory._visual_intent_match_score(
               "St Giles & Holborn Civil Parish Map 1870",
               "historical map of St Giles parish",
@@ -68,11 +93,18 @@ jobs:
 
           from pathlib import Path
           pipeline_text = Path("pipeline.py").read_text(encoding="utf-8")
+          event_memory_text = Path("event_memory.py").read_text(encoding="utf-8")
           for profile in ("documentary_male", "mystery_female", "dramatic_male", "energetic_female"):
               assert profile in pipeline_text, f"Missing V1.4 voice profile: {profile}"
           assert '"ending_strategy": "semantic"' in pipeline_text, "V1.4 ending strategy schema missing"
           assert "Natural ending + loop strategy" in pipeline_text, "Natural ending QA missing"
           assert "V1.4 visual loop" in pipeline_text, "Visual loop implementation missing"
+          assert '"visual_fact": "..."' in pipeline_text, "Visual fact schema missing"
+          assert "event_specificity" in pipeline_text, "Visual specificity QA missing"
+          assert "information_density" in pipeline_text, "Visual density QA missing"
+          assert "_visual_event_specificity" in event_memory_text, "Event specificity helper missing"
+          assert "_visual_information_density" in event_memory_text, "Visual information density helper missing"
+          assert "visual_fact" in event_memory_text, "Visual fact query integration missing"
 
-          print("V1.4 smoke tests passed")
+          print("V1.4.1 smoke tests passed")
           PY

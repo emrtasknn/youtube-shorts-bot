@@ -49,6 +49,14 @@ Her üretilen video Telegram üzerinden önizleme ve 4 interaktif inline buton i
 
 ---
 
+### V1.4.1 — Visual Storytelling
+- **Visual Fact Layer**: Her sahne için görüntünün kanıtlaması gereken somut tarihsel gerçek planlanır.
+- **Event Specificity**: Gerçek görseller yalnızca genel konuya değil, mümkün olduğunca doğrudan olaya özgü metadata taşıdığında kabul edilir.
+- **Information Density**: Görsel planının anlatılan somut unsurları ne kadar taşıdığı ölçülür ve metadata olarak saklanır.
+- **Role-aware visuals**: `evidence`, `mechanism`, `reconstruction`, `context_map`, `person_or_entity`, `aftermath`, `atmosphere` rolleri ile generic atmosfer sahneleri sınırlandırılır.
+- **AI fallback**: Gerçek kaynak bulunamadığında AI promptu narration keyword'lerini değil visual fact'i birebir canlandırır.
+- Not: Event specificity ve information density gerçek görüntünün piksel içeriğini değil, kaynak başlık/açıklama metadata'sını ölçer. Pixel-level görsel doğrulama henüz bu katmanda yapılmaz.
+
 ## 🚀 Hızlı Başlangıç
 
 ### 1. Kurulum

@@ -184,9 +184,19 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} is not an object")
         narration = str(scene.get("narration", "")).strip()
         image_prompt = str(scene.get("image_prompt", "")).strip()
+        visual_fact = str(scene.get("visual_fact", "")).strip()
+        visual_role = str(scene.get("visual_role", "")).strip().lower()
         visual_intent = scene.get("visual_intent")
         if not narration or not image_prompt:
             raise ValueError(f"Scene {i} is missing narration or image_prompt")
+        if not visual_fact:
+            raise ValueError(f"Scene {i} is missing visual_fact")
+        allowed_visual_roles = {
+            "evidence", "mechanism", "reconstruction", "context_map",
+            "person_or_entity", "aftermath", "atmosphere"
+        }
+        if visual_role not in allowed_visual_roles:
+            raise ValueError(f"Scene {i} has invalid visual_role: {visual_role}")
         if not isinstance(visual_intent, dict):
             raise ValueError(f"Scene {i} is missing visual_intent")
         required_intent = ["primary_subject", "visual_type", "must_show", "avoid", "search_queries"]
@@ -197,13 +207,32 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} visual_intent must_show/avoid must be lists")
         if not isinstance(visual_intent.get("search_queries"), list):
             raise ValueError(f"Scene {i} visual_intent search_queries must be a list")
+        if str(visual_intent.get("visual_fact", "")).strip() != visual_fact:
+            raise ValueError(f"Scene {i} visual_intent.visual_fact must match scene visual_fact")
+        if str(visual_intent.get("visual_role", "")).strip().lower() != visual_role:
+            raise ValueError(f"Scene {i} visual_intent.visual_role must match scene visual_role")
         word_count = len(narration.split())
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
         total_words += word_count
+        event_specificity = scene.get("event_specificity", 0.0)
+        information_density = scene.get("information_density", 0.0)
+        try:
+            event_specificity = float(event_specificity)
+            information_density = float(information_density)
+        except (TypeError, ValueError):
+            raise ValueError(f"Scene {i} event_specificity/information_density must be numeric")
+        if not 0.0 <= event_specificity <= 1.0 or not 0.0 <= information_density <= 1.0:
+            raise ValueError(f"Scene {i} visual planning scores must be between 0 and 1")
+        if visual_role != "atmosphere" and event_specificity < 0.70:
+            raise ValueError(f"Scene {i} event_specificity is too low: {event_specificity:.2f} (<0.70)")
         cleaned.append({
             "narration": narration,
             "image_prompt": image_prompt,
+            "visual_fact": visual_fact,
+            "visual_role": visual_role,
+            "event_specificity": round(event_specificity, 3),
+            "information_density": round(information_density, 3),
             "visual_intent": visual_intent,
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
@@ -553,12 +582,23 @@ Kurallar:
 9. Yedi sahnede farklı görsel arketipler kullan: hook/close-up, wide establishing, artifact/document, map/diagram, crowd/action, location/detail, archival aftermath.
 10. Görsel promptlarda "same woman", "same man", "same character" veya karakter sürekliliği isteme. Yalnızca olayın gerçek kişilerinin görsel olarak zorunlu olduğu sahnede kişi göster.
 11. Modern stok estetiği yerine döneme uygun tarihsel/arkeolojik belgesel estetiğini tercih et.
-12. Her sahne için visual_intent üret. visual_intent, narration'ın görsel karşılığını açıkça tanımlamalı.
-13. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
-14. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
-15. search_queries, doğrudan sahnenin konusu için 2-4 spesifik tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
-16. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
-17. Gerçek görsel bulunamayacaksa image_prompt, aynı görsel niyetini birebir canlandıran tarihsel rekonstrüksiyon olmalı.
+12. Her sahne için visual_fact ve visual_intent üret.
+13. visual_fact, anlatılan cümlenin ekranda gösterilecek SOMUT tarihsel bilgisidir. Bir atmosfer, duygu veya genel konu değildir.
+14. visual_role, görselin rolünü belirtmeli: evidence, mechanism, reconstruction, context_map, person_or_entity, aftermath veya atmosphere.
+15. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
+16. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
+17. search_queries, visual_fact ve olayın spesifik kimliği etrafında 2-4 tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
+18. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
+19. "80 milyon ağaç devrildi" anlatılıyorsa normal orman değil devrilmiş/hasar görmüş ağaçlar veya blast pattern hedefle.
+20. "atmosferde hava patlaması" anlatılıyorsa generic Earth/sunset değil giriş yapan gök cismi, atmosferik patlama veya şok dalgası göster.
+21. Belirli bir kişi/kurum adı anlatılıyorsa generic person kullanma; gerçek arşiv görseli veya açıkça hedeflenmiş historical reconstruction oluştur.
+22. atmosphere yalnızca geçiş/duygu amacıyla kullanılabilir; ana tarihsel bilgi taşıyan sahnelerde evidence/mechanism/reconstruction tercih et.
+23. Görsel arketipleri factual intent'i ezmemeli. Metin harita gerektirmiyorsa sırf çeşitlilik için map kullanma.
+24. AI fallback, visual_fact'i birebir görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
+
+25. Her sahne için `event_specificity` ve `information_density` planlama puanlarını 0-1 arasında ver.
+26. evidence, mechanism, reconstruction, context_map, person_or_entity ve aftermath rollerinde event_specificity en az 0.70 hedefle.
+27. atmosphere rolünü en fazla 1 sahnede kullan ve information_density düşük olabilir; diğer sahneler bilgi taşımalıdır.
 
 Şema:
 {{
@@ -566,7 +606,13 @@ Kurallar:
     {{
       "narration": "...",
       "image_prompt": "...",
+      "visual_fact": "...",
+      "visual_role": "evidence",
+      "event_specificity": 0.90,
+      "information_density": 0.85,
       "visual_intent": {{
+        "visual_fact": "...",
+        "visual_role": "evidence",
         "primary_subject": "...",
         "visual_type": "historical_photo/artifact/document/map/person/location/crowd/action/reconstruction",
         "must_show": ["somut unsur 1", "somut unsur 2"],
@@ -1565,39 +1611,79 @@ def validate_video_quality(video_path: Path) -> dict:
 
 
 def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_relevance: float = 0.55) -> dict:
-    """Final deterministic gate: every real visual must meet the relevance threshold."""
+    """Final deterministic gate for source metadata and visual planning quality."""
     if len(visual_sources) != len(scenes):
         raise ValueError(f"Visual QA failed: {len(visual_sources)} sources for {len(scenes)} scenes")
+
     results = []
     for idx, (source, scene) in enumerate(zip(visual_sources, scenes), 1):
         source_type = source.get("source_type", "")
+        visual_role = str(scene.get("visual_role", "")).lower()
+        planned_specificity = float(scene.get("event_specificity", 0.0))
+        planned_density = float(scene.get("information_density", 0.0))
+        visual_fact = str(scene.get("visual_fact", "")).strip()
+
+        if not visual_fact:
+            raise ValueError(f"Visual QA failed: scene {idx} has no visual_fact")
+        if visual_role != "atmosphere" and planned_specificity < 0.70:
+            raise ValueError(
+                f"Visual QA failed: scene {idx} planned event specificity {planned_specificity:.2f} < 0.70"
+            )
+
         if source_type in ("wikimedia", "openverse"):
-            score = float(source.get("relevance_score", 0))
-            if score < min_relevance:
+            relevance = float(source.get("relevance_score", 0))
+            specificity = float(source.get("event_specificity", 0))
+            density = float(source.get("information_density", 0))
+            if relevance < min_relevance:
                 raise ValueError(
-                    f"Visual QA failed: scene {idx} real visual relevance {score:.2f} "
+                    f"Visual QA failed: scene {idx} real visual relevance {relevance:.2f} "
                     f"is below threshold {min_relevance:.2f}"
                 )
+            if visual_role != "atmosphere" and specificity < 0.35:
+                raise ValueError(
+                    f"Visual QA failed: scene {idx} real visual specificity {specificity:.2f} < 0.35"
+                )
             results.append({
-                "scene": idx, "source_type": source_type,
-                "relevance_score": score, "title": source.get("title", ""),
-                "query": source.get("search_query", ""), "decision": "PASS_REAL",
+                "scene": idx,
+                "source_type": source_type,
+                "relevance_score": relevance,
+                "event_specificity": specificity,
+                "information_density": density,
+                "planned_event_specificity": planned_specificity,
+                "planned_information_density": planned_density,
+                "visual_fact": visual_fact,
+                "visual_role": visual_role,
+                "title": source.get("title", ""),
+                "query": source.get("search_query", ""),
+                "decision": "PASS_REAL",
             })
         elif source_type == "ai_reconstruction":
             intent = scene.get("visual_intent", {})
             if not intent.get("primary_subject") or not intent.get("must_show"):
                 raise ValueError(f"Visual QA failed: scene {idx} AI reconstruction has no concrete visual intent")
             results.append({
-                "scene": idx, "source_type": source_type, "decision": "PASS_AI_INTENT",
+                "scene": idx,
+                "source_type": source_type,
+                "decision": "PASS_AI_INTENT_PLAN",
                 "primary_subject": intent.get("primary_subject", ""),
+                "visual_fact": visual_fact,
+                "visual_role": visual_role,
+                "planned_event_specificity": planned_specificity,
+                "planned_information_density": planned_density,
             })
         else:
             raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
+
+    atmosphere_count = sum(1 for scene in results if scene.get("visual_role") == "atmosphere")
+    if atmosphere_count > 1:
+        raise ValueError(f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); maximum is 1")
+
     return {
         "passed": True,
         "scene_count": len(results),
         "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
         "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
+        "atmosphere_scenes": atmosphere_count,
         "scenes": results,
     }
 
@@ -1685,13 +1771,24 @@ def run(auto_publish: bool | None = None):
     for i, scene in enumerate(scenes, 1):
         visual_intent = scene.get("visual_intent", {})
         terms = list(visual_intent.get("search_queries", []))
+        event_context = {
+            "title": topic_compat["title"],
+            "aliases": candidate.get("aliases", []),
+            "location": candidate.get("location", ""),
+            "entities": candidate.get("entities", []),
+            "date": candidate.get("date", ""),
+        }
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
             event_title=topic_compat["title"],
             excluded_urls=used_visual_urls,
             visual_intent=visual_intent,
+            event_context=event_context,
         )
+        v_source["visual_fact"] = scene.get("visual_fact", "")
+        v_source["visual_role"] = scene.get("visual_role", "")
+
         visual_sources.append(v_source)
         resolved_url = v_source.get("image_url")
         if resolved_url and resolved_url not in used_visual_urls:
@@ -1747,16 +1844,29 @@ def run(auto_publish: bool | None = None):
                     e,
                 )
 
+        # V1.4.1: source metadata is part of the visual QA trail.
+        scene["resolved_visual"] = {
+            "source_type": v_source.get("source_type", ""),
+            "title": v_source.get("title", ""),
+            "relevance_score": v_source.get("relevance_score", 0.0),
+            "event_specificity": v_source.get("event_specificity", 0.0),
+            "information_density": v_source.get("information_density", 0.0),
+            "visual_fact": scene.get("visual_fact", ""),
+            "visual_role": scene.get("visual_role", ""),
+        }
         source_type_for_enhancement = v_source.get("source_type", "ai_reconstruction") if image_downloaded else "ai_reconstruction"
         if not image_downloaded:
             intent = scene.get("visual_intent", {})
             ai_prompt = (
                 f"{scene['image_prompt']} "
+                f"Visual fact to depict: {scene.get('visual_fact', '')}. "
+                f"Visual role: {scene.get('visual_role', '')}. "
                 f"Primary subject: {intent.get('primary_subject', '')}. "
                 f"Must visibly include: {', '.join(intent.get('must_show', []))}. "
                 f"Avoid: {', '.join(intent.get('avoid', []))}. "
                 f"Historical event context: {topic_compat['title']}. "
-                "The image must depict the specific narrated subject, not a generic landscape or stock scene. "
+                "Depict the concrete visual fact first; do not substitute a generic landscape, generic portrait, or keyword collage. "
+                "The main historical subject must be clearly visible and event-specific. "
                 "No modern objects, no text, no watermark, documentary historical reconstruction."
             )
             download_ai_image(ai_prompt, image_path)
