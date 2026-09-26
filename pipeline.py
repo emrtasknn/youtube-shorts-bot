@@ -1444,16 +1444,41 @@ def _find_sfx_asset(sfx_type: str) -> Path | None:
         return None
 
     key = _normalize_audio_stem(sfx_type)
-    exact = [p for p in candidates if _normalize_audio_stem(p.stem) == key]
-    if exact:
-        return exact[0]
+    aliases = {
+        "coin": {"coin", "coins"},
+        "footsteps": {"footstep", "footsteps"},
+        "door": {"door", "wood", "creak"},
+        "ship": {"ship", "bell"},
+        "clock": {"clock", "ticking", "tick"},
+        "paper": {"paper", "folding"},
+        "thunder": {"thunder"},
+        "wind": {"wind"},
+        "whoosh": {"whoosh"},
+        "impact": {"impact", "crash"},
+        "fire": {"fire", "bonfire"},
+    }
+    wanted_tokens = aliases.get(key, {key})
 
-    prefixed = [p for p in candidates if _normalize_audio_stem(p.stem).startswith(key + "_")]
-    if prefixed:
-        return random.choice(prefixed)
+    def score(path: Path) -> int:
+        tokens = set(_normalize_audio_stem(path.stem).split("_"))
+        if _normalize_audio_stem(path.stem) == key:
+            return 100
+        if key in tokens:
+            return 90
+        overlap = len(tokens & wanted_tokens)
+        return overlap * 10
 
-    tagged = [p for p in candidates if key in _normalize_audio_stem(p.stem).split("_")]
-    return random.choice(tagged) if tagged else None
+    ranked = sorted(
+        ((score(p), p) for p in candidates),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    if ranked and ranked[0][0] > 0:
+        best_score = ranked[0][0]
+        best = [p for s, p in ranked if s == best_score]
+        return random.choice(best)
+
+    return None
 
 
 def build_sfx_clips(scenes: list[dict], scene_timings: list[tuple[float, float]], total_duration: float):
