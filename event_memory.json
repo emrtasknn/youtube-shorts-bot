@@ -244,5 +244,39 @@
     "created_at": "2026-09-26T07:08:35",
     "status": "used",
     "completed_at": "2026-09-26T07:17:02"
+  },
+  {
+    "event_id": "evt_0d642523cf87",
+    "canonical_title": "The Dyatlov Pass Incident",
+    "aliases": [
+      "Dyatlov Geçidi Olayı"
+    ],
+    "date": "1959",
+    "date_normalized": "1959",
+    "location": "Ural Mountains, Soviet Union",
+    "entities": [
+      "Igor Dyatlov",
+      "Yuri Yudin"
+    ],
+    "event_summary": "Nine experienced hikers died under mysterious circumstances in the Ural mountains. Their tent was cut open from the inside, and victims were found with unexplained trauma and strange radiation levels.",
+    "core_facts": [
+      "Grup, 2 Şubat 1959 gecesi Ural Dağları'nda hayatını kaybetti.",
+      "Çadır içeriden dışarıya doğru kesilerek açılmıştı.",
+      "Kurbanların bir kısmı dondurucu soğukta kıyafetlerinin çoğunu giymemiş halde bulundu.",
+      "Gruptan hayatta kalan tek kişi, sağlık sorunları nedeniyle yürüyüşü yarıda bırakan Yuri Yudin'dir.",
+      "Adli tıp raporları bazı kurbanlarda dış doku hasarı olmaksızın ciddi iç kemik travmaları tespit etti."
+    ],
+    "claims": [
+      "Kurbanların üzerindeki kıyafetlerde tespit edilen radyoaktif seviyelerin kökeni.",
+      "Çadırı terk etmeye zorlayan etkenin doğa olayı mı yoksa insan kaynaklı bir durum mu olduğu."
+    ],
+    "sources": [
+      "Soviet investigation files of the 1959 Dyatlov Pass case (Sverdlovsk prosecutor's office archive)",
+      "Donnie Eichar - Dead Mountain: The Untold True Story of the Dyatlov Pass Incident"
+    ],
+    "first_video_id": "run_20260926_090821",
+    "created_at": "2026-09-26T08:57:54",
+    "status": "used",
+    "completed_at": "2026-09-26T09:08:21"
   }
 ]
