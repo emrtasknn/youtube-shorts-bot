@@ -215,11 +215,24 @@ def validate_script(data: dict) -> list[dict]:
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
         total_words += word_count
+        event_specificity = scene.get("event_specificity", 0.0)
+        information_density = scene.get("information_density", 0.0)
+        try:
+            event_specificity = float(event_specificity)
+            information_density = float(information_density)
+        except (TypeError, ValueError):
+            raise ValueError(f"Scene {i} event_specificity/information_density must be numeric")
+        if not 0.0 <= event_specificity <= 1.0 or not 0.0 <= information_density <= 1.0:
+            raise ValueError(f"Scene {i} visual planning scores must be between 0 and 1")
+        if visual_role != "atmosphere" and event_specificity < 0.70:
+            raise ValueError(f"Scene {i} event_specificity is too low: {event_specificity:.2f} (<0.70)")
         cleaned.append({
             "narration": narration,
             "image_prompt": image_prompt,
             "visual_fact": visual_fact,
             "visual_role": visual_role,
+            "event_specificity": round(event_specificity, 3),
+            "information_density": round(information_density, 3),
             "visual_intent": visual_intent,
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
