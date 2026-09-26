@@ -207,10 +207,17 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} visual_intent must_show/avoid must be lists")
         if not isinstance(visual_intent.get("search_queries"), list):
             raise ValueError(f"Scene {i} visual_intent search_queries must be a list")
-        if str(visual_intent.get("visual_fact", "")).strip() != visual_fact:
-            raise ValueError(f"Scene {i} visual_intent.visual_fact must match scene visual_fact")
-        if str(visual_intent.get("visual_role", "")).strip().lower() != visual_role:
-            raise ValueError(f"Scene {i} visual_intent.visual_role must match scene visual_role")
+        # Gemini may paraphrase the duplicated visual_fact/visual_role fields.
+        # The scene-level fields are canonical; synchronize the nested intent instead
+        # of rejecting an otherwise valid script for a wording-only mismatch.
+        nested_fact = str(visual_intent.get("visual_fact", "")).strip()
+        nested_role = str(visual_intent.get("visual_role", "")).strip().lower()
+        if nested_fact != visual_fact:
+            log.warning("Scene %s visual_intent.visual_fact differs from scene visual_fact; synchronizing to canonical scene value.", i)
+            visual_intent["visual_fact"] = visual_fact
+        if nested_role != visual_role:
+            log.warning("Scene %s visual_intent.visual_role differs from scene visual_role; synchronizing to canonical scene value.", i)
+            visual_intent["visual_role"] = visual_role
         word_count = len(narration.split())
         if word_count < 6 or word_count > 12:
             raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
@@ -635,7 +642,12 @@ Kurallar:
         
         if res and res.text:
             try:
-                data = json.loads(res.text.strip())
+                raw_json = res.text.strip()
+                try:
+                    data = json.loads(raw_json)
+                except json.JSONDecodeError:
+                    decoder = json.JSONDecoder()
+                    data, _ = decoder.raw_decode(raw_json)
                 scenes = validate_script(data)
                 topic_compat = {"title": topic_title} # For QA
                 qa_result = evaluate_script_quality(scenes, topic_compat)
@@ -644,7 +656,21 @@ Kurallar:
             except Exception as exc:
                 err_msg = str(exc)
                 log.warning("Script parsing or validation failed: %s", err_msg)
-                current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\nKRİTİK: Önceki çıktı fazla uzundu. Bu kez 7 sahnenin TOPLAM NARRATION kelime sayısı 56-72 arasında olmalı; 72 kelimeyi ASLA aşma. Her sahne 6-12 kelime. Gereksiz sıfatları ve açıklamaları çıkar. Sadece kısa, doğal Türkçe cümleler yaz."
+                current_total_match = re.search(r"(\d+) words", err_msg)
+                current_total = int(current_total_match.group(1)) if current_total_match else None
+                word_fix = (
+                    f"Mevcut denemede toplam {current_total} kelime vardı; bu kez toplamı 56-72 kelimeye çıkar."
+                    if current_total is not None and current_total < MIN_TOTAL_WORDS
+                    else "Toplam narration 56-72 kelime arasında olmalı."
+                )
+                current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\n"
+                current_prompt += (
+                    f"KRİTİK DÜZELTME: {word_fix} "
+                    "Her sahne 7-10 kelime hedeflesin ve 6-12 sınırını korusun. "
+                    "visual_fact ve visual_intent.visual_fact aynı anlamı taşımalı; "
+                    "visual_role ve visual_intent.visual_role aynı olmalı. "
+                    "Çıktıda yalnızca TEK bir JSON nesnesi üret; JSON'dan sonra hiçbir metin ekleme."
+                )
 
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
