@@ -1177,56 +1177,136 @@ def get_subtitle_font(size: int = 68):
     return ImageFont.load_default()
 
 
-def render_subtitle_image(words: list[str], active_idx: int, font, canvas_w=1080, canvas_h=220) -> np.ndarray:
-    """Render a transparent frame with words centered and active word highlighted in gold/yellow."""
+# YouTube Shorts UI-safe subtitle area.
+# The right/bottom UI is not part of the uploaded video itself, but it overlays
+# the rendered Short inside the YouTube player. Keep subtitles comfortably away
+# from the lower third so the title/description/actions do not cover them.
+SUBTITLE_SAFE_TOP = float(os.getenv("SUBTITLE_SAFE_TOP", "0.50"))
+SUBTITLE_SAFE_BOTTOM = float(os.getenv("SUBTITLE_SAFE_BOTTOM", "0.68"))
+SUBTITLE_SAFE_LEFT = float(os.getenv("SUBTITLE_SAFE_LEFT", "0.08"))
+SUBTITLE_SAFE_RIGHT = float(os.getenv("SUBTITLE_SAFE_RIGHT", "0.84"))
+SUBTITLE_MAX_LINES = int(os.getenv("SUBTITLE_MAX_LINES", "2"))
+SUBTITLE_FONT_SIZE = int(os.getenv("SUBTITLE_FONT_SIZE", "68"))
+SUBTITLE_CANVAS_HEIGHT = int(os.getenv("SUBTITLE_CANVAS_HEIGHT", "220"))
+
+
+def _subtitle_safe_position(canvas_h: int = VIDEO_HEIGHT) -> int:
+    """Return the top Y coordinate for the subtitle overlay inside the safe zone."""
+    safe_top = int(canvas_h * SUBTITLE_SAFE_TOP)
+    safe_bottom = int(canvas_h * SUBTITLE_SAFE_BOTTOM)
+    overlay_h = SUBTITLE_CANVAS_HEIGHT
+    y = int((safe_top + safe_bottom - overlay_h) / 2)
+    return max(0, min(y, canvas_h - overlay_h))
+
+
+def _split_subtitle_lines(
+    words: list[str],
+    font,
+    canvas_w: int = VIDEO_WIDTH,
+    max_lines: int = SUBTITLE_MAX_LINES,
+) -> tuple[list[str], list[list[str]]]:
+    """Wrap subtitle words into <=2 balanced lines inside the horizontal safe zone."""
+    upper_words = [turkish_upper(w) for w in words]
+    if not upper_words:
+        return [], []
+
+    draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    safe_left = int(canvas_w * SUBTITLE_SAFE_LEFT)
+    safe_right = int(canvas_w * SUBTITLE_SAFE_RIGHT)
+    safe_width = max(240, safe_right - safe_left)
+    space_w = draw.textlength(" ", font=font)
+
+    lines: list[list[str]] = [[]]
+    current_width = 0.0
+    for word in upper_words:
+        word_w = draw.textlength(word, font=font)
+        candidate_width = word_w if not lines[-1] else current_width + space_w + word_w
+        if lines[-1] and candidate_width > safe_width and len(lines) < max_lines:
+            lines.append([word])
+            current_width = word_w
+        else:
+            lines[-1].append(word)
+            current_width = candidate_width
+
+    return upper_words, lines
+
+
+def render_subtitle_image(
+    words: list[str],
+    active_idx: int,
+    font,
+    canvas_w=VIDEO_WIDTH,
+    canvas_h=SUBTITLE_CANVAS_HEIGHT,
+) -> np.ndarray:
+    """Render active-word subtitles and keep all text inside the Shorts-safe zone."""
     img = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
+    safe_left = int(canvas_w * SUBTITLE_SAFE_LEFT)
+    safe_right = int(canvas_w * SUBTITLE_SAFE_RIGHT)
+    safe_width = max(240, safe_right - safe_left)
 
+    current_size = getattr(font, "size", SUBTITLE_FONT_SIZE)
     upper_words = [turkish_upper(w) for w in words]
-    space_w = draw.textlength(" ", font=font)
-    word_widths = [draw.textlength(w, font=font) for w in upper_words]
-    total_w = sum(word_widths) + space_w * max(len(words) - 1, 0)
 
-    # If the text chunk is wider than canvas allows, scale font size down dynamically
-    current_size = getattr(font, "size", 68)
-    while total_w > (canvas_w - 60) and current_size > 36:
+    while current_size > 36:
+        test_font = get_subtitle_font(size=current_size)
+        _, lines = _split_subtitle_lines(upper_words, test_font, canvas_w, SUBTITLE_MAX_LINES)
+        max_line_w = 0.0
+        for line in lines:
+            line_w = sum(draw.textlength(word, font=test_font) for word in line)
+            line_w += draw.textlength(" ", font=test_font) * max(len(line) - 1, 0)
+            max_line_w = max(max_line_w, line_w)
+        if max_line_w <= safe_width:
+            font = test_font
+            break
         current_size -= 4
-        scaled_font = get_subtitle_font(size=current_size)
-        space_w = draw.textlength(" ", font=scaled_font)
-        word_widths = [draw.textlength(w, font=scaled_font) for w in upper_words]
-        total_w = sum(word_widths) + space_w * max(len(words) - 1, 0)
-        font = scaled_font
 
-    x = max((canvas_w - total_w) / 2, 20.0)
-    y = max((canvas_h - 90) / 2, 10.0)
-
-    for i, (word, w_width) in enumerate(zip(upper_words, word_widths)):
-        if i == active_idx:
-            fill_color = (255, 230, 0, 255)
-        else:
-            fill_color = (255, 255, 255, 255)
-
-        draw.text(
-            (x, y),
-            word,
-            font=font,
-            fill=fill_color,
-            stroke_width=6,
-            stroke_fill=(0, 0, 0, 255),
+    _, lines = _split_subtitle_lines(upper_words, font, canvas_w, SUBTITLE_MAX_LINES)
+    line_heights = []
+    line_widths = []
+    for line in lines:
+        bbox = draw.textbbox((0, 0), " ".join(line), font=font, stroke_width=6)
+        line_heights.append(max(bbox[3] - bbox[1], 1))
+        line_widths.append(
+            sum(draw.textlength(word, font=font) for word in line)
+            + draw.textlength(" ", font=font) * max(len(line) - 1, 0)
         )
-        x += w_width + space_w
+
+    line_gap = 8
+    total_h = sum(line_heights) + line_gap * max(len(lines) - 1, 0)
+    y = max((canvas_h - total_h) / 2, 8)
+
+    flat_index = 0
+    for line_idx, line in enumerate(lines):
+        line_y = y + (sum(line_heights[:line_idx]) + line_gap * line_idx)
+        x = max((canvas_w - line_widths[line_idx]) / 2, safe_left)
+        for local_idx, word in enumerate(line):
+            word_index = flat_index + local_idx
+            fill_color = (255, 230, 0, 255) if word_index == active_idx else (255, 255, 255, 255)
+            draw.text(
+                (x, line_y),
+                word,
+                font=font,
+                fill=fill_color,
+                stroke_width=6,
+                stroke_fill=(0, 0, 0, 255),
+            )
+            x += draw.textlength(word, font=font) + draw.textlength(" ", font=font)
+        flat_index += len(line)
 
     return np.array(img)
 
 
 def generate_subtitle_clips(words_data: list[dict]):
-    """Generate dynamic subtitle clips with active word highlighting and Turkish character support."""
+    """Generate dynamic subtitle clips in the Shorts-safe zone with up to two lines."""
     subtitle_clips = []
     if not words_data:
         return subtitle_clips
 
-    font = get_subtitle_font(size=68)
+    font = get_subtitle_font(size=SUBTITLE_FONT_SIZE)
     chunk_size = 3
+    subtitle_y = _subtitle_safe_position()
+
     for i in range(0, len(words_data), chunk_size):
         chunk = words_data[i : i + chunk_size]
         if not chunk:
@@ -1243,13 +1323,19 @@ def generate_subtitle_clips(words_data: list[dict]):
                 end_t = chunk_end
 
             duration = max(end_t - start_t, 0.15)
-            frame_arr = render_subtitle_image(raw_words, active_idx=idx, font=font)
+            frame_arr = render_subtitle_image(
+                raw_words,
+                active_idx=idx,
+                font=font,
+                canvas_w=VIDEO_WIDTH,
+                canvas_h=SUBTITLE_CANVAS_HEIGHT,
+            )
 
             clip = (
                 ImageClip(frame_arr)
                 .with_start(start_t)
                 .with_duration(duration)
-                .with_position(("center", 1430))
+                .with_position(("center", subtitle_y))
             )
             subtitle_clips.append(clip)
 
@@ -1636,7 +1722,11 @@ def send_to_telegram(
     if not run_id:
         run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
 
-    topic_title = topic.get("title", "Yeni Shorts") if topic else "Yeni Shorts"
+    topic_title = (
+        topic.get("youtube_title")
+        or topic.get("title", "Yeni Shorts")
+        or "Yeni Shorts"
+    ) if topic else "Yeni Shorts"
     hook_question = topic.get("hook_question", "") if topic else ""
     hook_line = f"❓ _{hook_question}_\n\n" if hook_question else ""
 
@@ -2052,6 +2142,57 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
     }
 
 
+def generate_youtube_title(candidate: dict, research_dossier: dict, scenes: list[dict]) -> str:
+    """Generate a concise, factual, curiosity-driven YouTube title using Gemini."""
+    fallback = str(candidate.get("canonical_title") or "Tarihin Bilinmeyen Gizemi").strip()
+    hook = str(research_dossier.get("story_hook") or "").strip()
+    full_text = " ".join(str(scene.get("narration", "")).strip() for scene in scenes)
+
+    prompt = f"""
+You are writing ONE Turkish YouTube Shorts title for a historical documentary.
+
+HISTORICAL EVENT:
+{fallback}
+
+RESEARCH HOOK:
+{hook}
+
+SCRIPT:
+{full_text}
+
+Rules:
+- Return ONLY one plain-text title. No quotes, hashtags, emojis, explanation, or prefix.
+- Maximum 85 characters. Never exceed 90 characters.
+- The title must accurately reflect the script and verified event.
+- Do not simply repeat the canonical event name.
+- Prefer curiosity and a concrete consequence, action, mystery, scale, or contradiction.
+- Avoid generic titles such as "Tarihin Bilinmeyen Gizemi".
+- Do not invent facts not present in the event/script.
+- Turkish language.
+"""
+
+    try:
+        response = gemini_config.call_gemini_with_retry(
+            prompt=prompt,
+            label="YouTube title generation",
+        )
+        raw = str(getattr(response, "text", "") or "").strip() if response else ""
+        raw = raw.strip('"').strip("'").strip()
+        raw = re.sub(r"^Titles*:s*", "", raw, flags=re.IGNORECASE).strip()
+        raw = re.sub(r"^Başlıks*:s*", "", raw, flags=re.IGNORECASE).strip()
+        raw = re.sub(r"#Shorts\b", "", raw, flags=re.IGNORECASE).strip()
+        raw = raw.splitlines()[0].strip() if raw else ""
+        if raw:
+            raw = re.sub(r"\s+", " ", raw)
+            if len(raw) > 90:
+                raw = raw[:87].rstrip(" .,!?;:") + "..."
+            return raw[:90]
+    except Exception as exc:
+        log.warning("AI YouTube title generation failed; using canonical fallback: %s", exc)
+
+    return fallback[:90].rstrip() or "Tarihin Bilinmeyen Gizemi"
+
+
 # -----------------------------
 # Main pipeline
 # -----------------------------
@@ -2072,8 +2213,10 @@ def run(auto_publish: bool | None = None):
 
     candidate, research_dossier = discovery_result
     # Topic dict compatibility for older functions (e.g., telegram / youtube uploader)
+    canonical_title = candidate.get("canonical_title", "Tarihsel Gizem")
     topic_compat = {
-        "title": candidate.get("canonical_title", "Tarihsel Gizem"),
+        "title": canonical_title,
+        "canonical_title": canonical_title,
         "hook_question": research_dossier.get("story_hook", ""),
         "viral_score": 9,
         "visual_appeal": 9,
@@ -2083,7 +2226,12 @@ def run(auto_publish: bool | None = None):
     scenes = generate_viral_script(candidate, research_dossier)
     full_text = " ".join(scene["narration"] for scene in scenes)
 
-    log.info("3/8 Analyzing script content for metadata")
+    log.info("3/8 Generating AI YouTube title")
+    youtube_title = generate_youtube_title(candidate, research_dossier, scenes)
+    topic_compat["youtube_title"] = youtube_title
+    log.info("Generated YouTube title: %s", youtube_title)
+
+    log.info("4/8 Analyzing script content for metadata")
     candidate_analysis = content_memory_module.analyze_script_content(
         scenes=scenes,
         topic_title=topic_compat["title"],
@@ -2094,7 +2242,7 @@ def run(auto_publish: bool | None = None):
         log.info("Visual reuse detected in %d scene pairs; diversifying prompts", len(visual_warnings))
         scenes = content_memory_module.diversify_image_prompts(scenes)
 
-    log.info("4/8 Generating voice and word timestamps")
+    log.info("5/8 Generating voice and word timestamps")
     voice_path = run_dir / "voice.mp3"
     voice_profile_name, voice_profile = choose_voice_profile(candidate, research_dossier)
     candidate["_voice_profile"] = voice_profile_name
@@ -2131,7 +2279,7 @@ def run(auto_publish: bool | None = None):
     storyboard_qa = validate_visual_storyboard(scenes)
     log.info("Visual storyboard QA (final scenes): %s", storyboard_qa)
 
-    log.info("5/8 Resolving visual sources and generating images")
+    log.info("6/8 Resolving visual sources and generating images")
     scene_clips = []
     
     # Pre-resolve visuals
@@ -2263,7 +2411,7 @@ def run(auto_publish: bool | None = None):
         motion_type = MOTION_TYPES[(i - 1) % len(MOTION_TYPES)]
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
 
-    log.info("6/8 Compositing video and subtitles")
+    log.info("7/8 Compositing video and subtitles")
     base_video = CompositeVideoClip(
         scene_clips, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
     ).with_duration(total_duration)
@@ -2276,7 +2424,7 @@ def run(auto_publish: bool | None = None):
         [base_video, hook_badge] + subtitles, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
     ).with_duration(total_duration)
 
-    log.info("7/8 Mixing audio (content-aware selection + real ducking)")
+    log.info("8/8 Mixing audio (content-aware selection + real ducking)")
     memory = content_memory_module.load_content_memory()
     music_path = get_ambient_music(
         run_dir / "bg_music.mp3",
@@ -2393,6 +2541,8 @@ def run(auto_publish: bool | None = None):
     metadata = {
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "event_record": event_record,
+        "youtube_title": youtube_title,
+        "canonical_event_title": canonical_title,
         "duration_seconds": round(total_duration, 3),
         "scene_count": len(scenes),
         "scene_timings": [{"start": round(a, 3), "end": round(b, 3)} for a, b in scene_timings],
