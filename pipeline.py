@@ -1844,6 +1844,16 @@ def run(auto_publish: bool | None = None):
                     e,
                 )
 
+        # V1.4.1: source metadata is part of the visual QA trail.
+        scene["resolved_visual"] = {
+            "source_type": v_source.get("source_type", ""),
+            "title": v_source.get("title", ""),
+            "relevance_score": v_source.get("relevance_score", 0.0),
+            "event_specificity": v_source.get("event_specificity", 0.0),
+            "information_density": v_source.get("information_density", 0.0),
+            "visual_fact": scene.get("visual_fact", ""),
+            "visual_role": scene.get("visual_role", ""),
+        }
         source_type_for_enhancement = v_source.get("source_type", "ai_reconstruction") if image_downloaded else "ai_reconstruction"
         if not image_downloaded:
             intent = scene.get("visual_intent", {})
