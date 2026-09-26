@@ -67,6 +67,17 @@ ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
 REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
 
+# AI-driven sound effects. Gemini chooses semantic cues; the renderer maps
+# them to locally downloaded, licensed SFX files. Missing assets never break rendering.
+SFX_ENABLED = os.getenv("SFX_ENABLED", "true").lower() in ("1", "true", "yes")
+SFX_DIR = Path(os.getenv("SFX_DIR", str(Path(__file__).resolve().parent / "assets" / "sfx")))
+SFX_MASTER_VOLUME = float(os.getenv("SFX_MASTER_VOLUME", "0.32"))
+ALLOWED_SFX_TYPES = {
+    "whoosh", "impact", "sword", "door", "crowd", "fire", "thunder",
+    "wind", "water", "horse", "footsteps", "paper", "clock", "bell",
+    "ship", "explosion", "metal", "stone", "coin", "whisper",
+}
+
 # V1.4 narration profiles. Edge TTS is retained for production stability;
 # diversity comes from narrator identity plus controlled delivery profiles.
 VOICE_PROFILES = {
@@ -220,6 +231,42 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} visual_intent visual_entities must be a list")
         if len(visual_intent.get("must_show", [])) < 2 or len(visual_intent.get("avoid", [])) < 2:
             raise ValueError(f"Scene {i} visual_intent must_show/avoid need at least 2 concrete items")
+
+        # AI-driven SFX plan is optional so older/fallback scenes remain valid.
+        raw_sfx = scene.get("sfx", [])
+        if raw_sfx is None:
+            raw_sfx = []
+        if not isinstance(raw_sfx, list) or len(raw_sfx) > 2:
+            raise ValueError(f"Scene {i} sfx must be a list with at most 2 cues")
+        cleaned_sfx = []
+        for cue in raw_sfx:
+            if not isinstance(cue, dict):
+                raise ValueError(f"Scene {i} contains an invalid sfx cue")
+            sfx_type = str(cue.get("type", "")).strip().lower()
+            if sfx_type not in ALLOWED_SFX_TYPES:
+                raise ValueError(f"Scene {i} has invalid sfx type: {sfx_type}")
+            description = str(cue.get("cue", "")).strip()
+            if not description:
+                raise ValueError(f"Scene {i} sfx cue is missing its description")
+            try:
+                offset_ratio = float(cue.get("offset_ratio", 0.5))
+                volume = float(cue.get("volume", 0.35))
+                max_duration = float(cue.get("max_duration", 2.0))
+            except (TypeError, ValueError):
+                raise ValueError(f"Scene {i} sfx numeric fields are invalid")
+            if not 0.0 <= offset_ratio <= 1.0:
+                raise ValueError(f"Scene {i} sfx offset_ratio must be between 0 and 1")
+            if not 0.05 <= volume <= 0.8:
+                raise ValueError(f"Scene {i} sfx volume must be between 0.05 and 0.8")
+            if not 0.15 <= max_duration <= 4.0:
+                raise ValueError(f"Scene {i} sfx max_duration must be between 0.15 and 4.0")
+            cleaned_sfx.append({
+                "type": sfx_type,
+                "cue": description,
+                "offset_ratio": round(offset_ratio, 3),
+                "volume": round(volume, 3),
+                "max_duration": round(max_duration, 3),
+            })
         # Gemini may paraphrase the duplicated visual_fact/visual_role fields.
         # The scene-level fields are canonical; synchronize the nested intent instead
         # of rejecting an otherwise valid script for a wording-only mismatch.
@@ -254,6 +301,7 @@ def validate_script(data: dict) -> list[dict]:
             "event_specificity": round(event_specificity, 3),
             "information_density": round(information_density, 3),
             "visual_intent": visual_intent,
+            "sfx": cleaned_sfx,
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
 
@@ -664,8 +712,13 @@ Kurallar:
 30. AI fallback, visual_fact + visual_action + composition'ı birlikte görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
 
 31. Her sahne için `event_specificity` ve `information_density` planlama puanlarını 0-1 arasında ver.
-26. evidence, mechanism, reconstruction, context_map, person_or_entity ve aftermath rollerinde event_specificity en az 0.70 hedefle.
-27. atmosphere rolünü en fazla 1 sahnede kullan ve information_density düşük olabilir; diğer sahneler bilgi taşımalıdır.
+32. Her sahne için AI-driven SFX planı üret. Yalnızca gerçekten duyulduğunda sahneyi güçlendiren somut olaylarda SFX kullan; sırf her sahnede ses olsun diye kullanma.
+33. SFX türünü yalnızca şu kontrollü listeden seç: whoosh, impact, sword, door, crowd, fire, thunder, wind, water, horse, footsteps, paper, clock, bell, ship, explosion, metal, stone, coin, whisper.
+34. Her sahnede 0-2 SFX olabilir. SFX zamanlaması sahne başlangıcına göre 0-1 arası `offset_ratio` ile belirtilir; `volume` 0.05-0.8; `max_duration` 0.15-4.0 saniye.
+35. SFX cue açıklaması ses dosyasının adını tahmin etmesin; duyulması gereken olayı tarif etsin. Örneğin "kılıçların çarpışması" veya "eski kapının ağır şekilde açılması".
+36. Narrationı maskeleyen sürekli ses, aşırı whoosh veya her sahneye impact ekleme. SFX yalnızca vurgu noktalarında kullanılmalı.
+37. evidence, mechanism, reconstruction, context_map, person_or_entity ve aftermath rollerinde event_specificity en az 0.70 hedefle.
+38. atmosphere rolünü en fazla 1 sahnede kullan ve information_density düşük olabilir; diğer sahneler bilgi taşımalıdır.
 
 Şema:
 {{
@@ -690,7 +743,16 @@ Kurallar:
         "must_show": ["somut unsur 1", "somut unsur 2"],
         "avoid": ["ilgisiz görsel 1", "ilgisiz görsel 2"],
         "search_queries": ["spesifik arama 1", "spesifik arama 2"]
-      }},,
+      }},
+      "sfx": [
+        {{
+          "type": "impact",
+          "cue": "the concrete sound event the viewer should hear",
+          "offset_ratio": 0.55,
+          "volume": 0.35,
+          "max_duration": 1.5
+        }}
+      ],
       "ending_strategy": "semantic"
     }}
   ]
@@ -1275,6 +1337,85 @@ def build_scene_clip(image_path: Path, start_time: float, end_time: float, motio
         return np.array(cropped)
 
     return clip.transform(apply_motion)
+
+
+# -----------------------------
+# AI-driven Sound Effects
+# -----------------------------
+def _normalize_audio_stem(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+
+def _find_sfx_asset(sfx_type: str) -> Path | None:
+    if not SFX_ENABLED or not SFX_DIR.exists():
+        return None
+    candidates = [
+        p for p in SFX_DIR.iterdir()
+        if p.is_file() and p.suffix.lower() in {".mp3", ".wav", ".m4a", ".ogg"}
+        and p.stat().st_size > 2_000
+    ]
+    if not candidates:
+        return None
+
+    key = _normalize_audio_stem(sfx_type)
+    exact = [p for p in candidates if _normalize_audio_stem(p.stem) == key]
+    if exact:
+        return exact[0]
+
+    prefixed = [p for p in candidates if _normalize_audio_stem(p.stem).startswith(key + "_")]
+    if prefixed:
+        return random.choice(prefixed)
+
+    tagged = [p for p in candidates if key in _normalize_audio_stem(p.stem).split("_")]
+    return random.choice(tagged) if tagged else None
+
+
+def build_sfx_clips(scenes: list[dict], scene_timings: list[tuple[float, float]], total_duration: float):
+    """Resolve AI semantic SFX cues to local audio assets and place them on the timeline."""
+    if not SFX_ENABLED:
+        return [], []
+
+    clips = []
+    records = []
+    for index, scene in enumerate(scenes):
+        if index >= len(scene_timings):
+            break
+        scene_start, scene_end = scene_timings[index]
+        scene_duration = max(scene_end - scene_start, 0.1)
+
+        for cue in scene.get("sfx", []):
+            asset = _find_sfx_asset(cue.get("type", ""))
+            if not asset:
+                log.info("SFX cue skipped: no asset for type=%s (scene=%d)", cue.get("type"), index + 1)
+                continue
+
+            offset_ratio = float(cue.get("offset_ratio", 0.5))
+            start = scene_start + min(max(offset_ratio, 0.0), 1.0) * max(scene_duration - 0.05, 0.05)
+            max_duration = min(float(cue.get("max_duration", 2.0)), max(total_duration - start, 0.05))
+            try:
+                clip = AudioFileClip(str(asset))
+                clip_duration = min(float(clip.duration), max_duration, max(total_duration - start, 0.05))
+                if clip_duration <= 0.05:
+                    clip.close()
+                    continue
+                clip = clip.subclipped(0, clip_duration).with_start(start)
+                clip = clip.with_volume_scaled(
+                    min(max(float(cue.get("volume", 0.35)) * SFX_MASTER_VOLUME / 0.32, 0.05), 1.0)
+                )
+                clips.append(clip)
+                records.append({
+                    "scene": index + 1,
+                    "type": cue.get("type"),
+                    "cue": cue.get("cue"),
+                    "asset": asset.name,
+                    "start": round(start, 3),
+                    "duration": round(clip_duration, 3),
+                    "volume": round(float(cue.get("volume", 0.35)) * SFX_MASTER_VOLUME / 0.32, 3),
+                })
+            except Exception as exc:
+                log.warning("Could not load SFX asset %s: %s", asset, exc)
+
+    return clips, records
 
 
 # -----------------------------
@@ -2189,11 +2330,17 @@ def run(auto_publish: bool | None = None):
                 AudioFadeIn(fade_in_len),
                 AudioFadeOut(fade_out_len),
             ])
-            final_audio = CompositeAudioClip([voice_audio, bg_music])
-            audio_mix_mode = "voice_plus_background_ducked"
+            sfx_clips, sfx_records = build_sfx_clips(
+                scenes=scenes,
+                scene_timings=scene_timings,
+                total_duration=total_duration,
+            )
+            audio_layers = [voice_audio, bg_music] + sfx_clips
+            final_audio = CompositeAudioClip(audio_layers)
+            audio_mix_mode = "voice_plus_background_ducked_plus_sfx" if sfx_records else "voice_plus_background_ducked"
             log.info(
-                "Audio mix OK: narration + %s with dynamic ducking (fade_in=%.1fs, fade_out=%.1fs)",
-                selected_audio_track, fade_in_len, fade_out_len,
+                "Audio mix OK: narration + %s + %d AI-driven SFX cues (fade_in=%.1fs, fade_out=%.1fs)",
+                selected_audio_track, len(sfx_records), fade_in_len, fade_out_len,
             )
         except Exception as exc:
             log.error("CRITICAL: Background music mixing failed: %s", exc)
@@ -2216,10 +2363,12 @@ def run(auto_publish: bool | None = None):
 
     log.info("Performing final video quality checks")
     video_qa = validate_video_quality(output_path)
-    if audio_mix_mode != "voice_plus_background_ducked":
+    if audio_mix_mode not in {"voice_plus_background_ducked", "voice_plus_background_ducked_plus_sfx"}:
         raise RuntimeError("Final audio QA failed: background music was not mixed into the video.")
     video_qa["audio_mix_mode"] = audio_mix_mode
     video_qa["background_music"] = selected_audio_track
+    video_qa["sfx_enabled"] = SFX_ENABLED
+    video_qa["sfx_cues"] = sfx_records
     log.info("Video QA passed: %s", video_qa)
 
     # ── Phase 4: Save Event Identity ──
@@ -2252,6 +2401,12 @@ def run(auto_publish: bool | None = None):
         "content_analysis": candidate_analysis,
         "audio_track": selected_audio_track,
         "audio_mix_mode": audio_mix_mode,
+        "sfx": sfx_records,
+        "sfx_config": {
+            "enabled": SFX_ENABLED,
+            "directory": str(SFX_DIR),
+            "master_volume": SFX_MASTER_VOLUME,
+        },
         "voice_profile": {
             "name": voice_profile_name,
             "voice": voice_profile["voice"],
