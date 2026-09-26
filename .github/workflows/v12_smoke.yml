@@ -1,4 +1,4 @@
-name: V1.4.1 Smoke Tests
+name: V1.4.2 Visual Story Engine Smoke Tests
 
 on:
   push:
