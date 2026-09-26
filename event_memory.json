@@ -627,5 +627,40 @@
     "created_at": "2026-09-26T19:16:48",
     "status": "used",
     "completed_at": "2026-09-26T19:28:13"
+  },
+  {
+    "event_id": "evt_fea861503247",
+    "canonical_title": "The disappearance of the crew of the Mary Celeste",
+    "aliases": [
+      "Mary Celeste mürettebatının kayboluşu",
+      "Terkedilmiş gemi"
+    ],
+    "date": "1872",
+    "date_normalized": "1872",
+    "location": "Atlas Okyanusu",
+    "entities": [
+      "Benjamin Briggs",
+      "Dei Gratia gemisi"
+    ],
+    "event_summary": "Mary Celeste gemisi, Atlas Okyanusu'nda rotasından sapmış bir şekilde, içindeki tüm mürettebatı kayıp, ancak kargo ve kişisel eşyaları yerli yerinde bulunmuştur.",
+    "core_facts": [
+      "Mary Celeste 5 Aralık 1872 tarihinde Dei Gratia gemisi tarafından Azor Adaları yakınlarında bulundu.",
+      "Gemi terk edilmiş haldeydi ancak kargo (endüstriyel alkol fıçıları) büyük oranda mevcuttu.",
+      "Kaptan Benjamin Briggs, eşi ve kızı da dahil olmak üzere toplam 10 kişi gemide bulunamadı.",
+      "Geminin cankurtaran sandalı kayıptı, bu da mürettebatın gemiyi isteyerek terk ettiğini düşündürdü.",
+      "Gemi kayıt defterindeki son giriş 25 Kasım 1872 tarihine aittir."
+    ],
+    "claims": [
+      "Mürettebatın gemiyi neden aniden terk ettiği; bu durum gemi sigortası dolandırıcılığı veya bir isyan şüphesiyle uzun süre tartışıldı.",
+      "Deniz suyunun gemiye girip girmediği ve kaptanın bu durumu yanlış yorumlayıp gemiyi erken terk etmesine neden olup olmadığı."
+    ],
+    "sources": [
+      "The 1872 Admiralty Court Records on the Mary Celeste",
+      "Brian Hicks, Ghost Ship: The Mysterious True Story of the Mary Celeste"
+    ],
+    "first_video_id": "run_20260926_194331",
+    "created_at": "2026-09-26T19:33:36",
+    "status": "used",
+    "completed_at": "2026-09-26T19:43:31"
   }
 ]
