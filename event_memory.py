@@ -1015,46 +1015,89 @@ def _visual_intent_match_score(
     event_title: str = "",
     visual_intent: Optional[dict] = None,
 ) -> tuple[float, dict]:
-    """Score an asset against the actual scene intent, not only the search query."""
+    """Score an asset against the full visual story unit, not only keywords."""
     intent = visual_intent or {}
     primary = str(intent.get("primary_subject", ""))
+    action = str(intent.get("visual_action", ""))
+    scene_context = str(intent.get("scene_context", ""))
+    composition = str(intent.get("composition", ""))
+    visual_entities = [str(x) for x in intent.get("visual_entities", []) if str(x).strip()]
     must_show = [str(x) for x in intent.get("must_show", []) if str(x).strip()]
     visual_type = str(intent.get("visual_type", "")).lower()
+
     haystack = f"{title} {description}"
     hay_tokens = _visual_tokens(haystack)
     primary_tokens = _visual_tokens(primary)
+    action_tokens = _visual_tokens(action)
+    context_tokens = _visual_tokens(scene_context)
+    composition_tokens = _visual_tokens(composition)
+    entity_tokens = _visual_tokens(" ".join(visual_entities))
     must_tokens = _visual_tokens(" ".join(must_show))
+
     query_score = _visual_relevance(query, title, description)
     event_tokens = _visual_tokens(event_title)
     event_overlap = len(event_tokens & hay_tokens) / max(len(event_tokens), 1)
-    primary_hits = len(primary_tokens & hay_tokens)
-    must_hits = len(must_tokens & hay_tokens)
-    primary_coverage = primary_hits / max(len(primary_tokens), 1)
-    must_coverage = must_hits / max(len(must_tokens), 1)
+
+    def coverage(tokens: set[str]) -> float:
+        return len(tokens & hay_tokens) / max(len(tokens), 1)
+
+    primary_coverage = coverage(primary_tokens)
+    action_coverage = coverage(action_tokens)
+    context_coverage = coverage(context_tokens)
+    composition_coverage = coverage(composition_tokens)
+    entity_coverage = coverage(entity_tokens)
+    must_coverage = coverage(must_tokens)
 
     if visual_type == "map":
-        # Map titles are often sparse ("St Giles Parish Map"). A direct map
-        # anchor is sufficient; the query is still event-specific and the
-        # resolver applies the relevance threshold separately.
-        intent_pass = primary_hits >= 1
+        intent_pass = primary_coverage >= 0.20 or context_coverage >= 0.20
     elif visual_type in ("document", "artifact"):
-        intent_pass = primary_hits >= 1 and (must_hits >= 1 or query_score >= 0.65)
+        intent_pass = (
+            primary_coverage >= 0.20
+            and (must_coverage >= 0.15 or query_score >= 0.65 or event_overlap >= 0.20)
+        )
     else:
-        intent_pass = primary_coverage >= 0.34 and must_coverage >= 0.20
+        # For action/reconstruction/location/crowd visuals, require a real
+        # subject plus at least one supporting relationship signal. The action
+        # is intentionally a signal rather than a hard gate because archive
+        # metadata often omits verbs even when the image is correct.
+        intent_pass = (
+            primary_coverage >= 0.20
+            and (
+                must_coverage >= 0.15
+                or action_coverage >= 0.15
+                or entity_coverage >= 0.15
+                or query_score >= 0.65
+            )
+        )
 
-    combined = max(query_score, 0.60 * primary_coverage + 0.40 * must_coverage)
+    intent_score = (
+        0.30 * primary_coverage
+        + 0.20 * action_coverage
+        + 0.15 * must_coverage
+        + 0.10 * entity_coverage
+        + 0.10 * context_coverage
+        + 0.10 * composition_coverage
+        + 0.05 * event_overlap
+    )
+    combined = max(query_score, intent_score)
     if event_overlap >= 0.20:
-        combined = min(1.0, combined + 0.08)
+        combined = min(1.0, combined + 0.05)
+
     return round(combined, 3), {
-        "primary_hits": primary_hits,
-        "must_hits": must_hits,
+        "primary_hits": len(primary_tokens & hay_tokens),
+        "must_hits": len(must_tokens & hay_tokens),
+        "action_hits": len(action_tokens & hay_tokens),
+        "entity_hits": len(entity_tokens & hay_tokens),
         "primary_coverage": round(primary_coverage, 3),
         "must_coverage": round(must_coverage, 3),
+        "action_coverage": round(action_coverage, 3),
+        "entity_coverage": round(entity_coverage, 3),
+        "context_coverage": round(context_coverage, 3),
+        "composition_coverage": round(composition_coverage, 3),
         "query_score": query_score,
         "event_overlap": round(event_overlap, 3),
         "intent_pass": intent_pass,
     }
-
 
 def _visual_relevance(query: str, title: str, description: str = "") -> float:
     """Deterministic relevance score; weakly related images are rejected."""
@@ -1121,9 +1164,15 @@ def search_wikimedia_image(
                     visual_fact=str(visual_intent.get("visual_fact", "") if visual_intent else ""),
                     must_show=visual_intent.get("must_show", []) if visual_intent else [],
                 )
-            ranked.append((max(score, intent_score), item, intent_meta, specificity, specificity_meta, density, density_meta))
+            rank_score = (
+                0.45 * intent_score
+                + 0.25 * specificity
+                + 0.20 * density
+                + 0.10 * score
+            ) if event_context else max(score, intent_score)
+            ranked.append((rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for score, item, intent_meta, specificity, specificity_meta, density, density_meta in ranked[:5]:
+        for rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1158,6 +1207,8 @@ def search_wikimedia_image(
                     "license": meta.get("LicenseShortName", {}).get("value", ""),
                     "attribution": author, "relevance_score": score, "search_query": search_term,
                     "intent_match": intent_meta,
+                    "intent_score": round(intent_score, 3),
+                    "rank_score": round(rank_score, 3),
                     "event_specificity": specificity,
                     "event_specificity_meta": specificity_meta,
                     "information_density": density,
@@ -1238,12 +1289,12 @@ def search_openverse_image(
                         if specificity < 0.35:
                             continue
 
-                rank_score = 0.50 * score + 0.30 * specificity + 0.20 * density if event_context else score
+                rank_score = (0.45 * intent_score + 0.25 * specificity + 0.20 * density + 0.10 * score) if event_context else score
                 if best is None or rank_score > best[0]:
-                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta)
+                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score)
 
         if best:
-            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta = best
+            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
@@ -1256,6 +1307,8 @@ def search_openverse_image(
                 "relevance_score": round(score, 3),
                 "search_query": query,
                 "intent_match": intent_meta,
+                "intent_score": round(intent_score, 3),
+                "rank_score": round(rank_score, 3),
                 "event_specificity": round(specificity, 3),
                 "event_specificity_meta": specificity_meta,
                 "information_density": round(density, 3),
@@ -1278,14 +1331,29 @@ def build_visual_search_queries(
     must_show = intent.get("must_show", [])
     primary = str(intent.get("primary_subject", "")).strip()
 
+    action = str(intent.get("visual_action", "")).strip()
+    scene_context = str(intent.get("scene_context", "")).strip()
+    composition = str(intent.get("composition", "")).strip()
+    visual_entities = [str(x).strip() for x in intent.get("visual_entities", []) if str(x).strip()]
+
     queries = []
+    # Query the historical proposition + action first. This prevents an object
+    # mentioned in the narration from becoming the whole visual by itself.
+    if visual_fact and action:
+        queries.append(f"{event_title} {visual_fact} {action}".strip())
     if visual_fact:
         queries.append(f"{event_title} {visual_fact}".strip())
     queries.extend(str(q).strip() for q in explicit if str(q).strip())
-    if primary:
-        queries.append(f"{event_title} {primary}".strip())
+    if primary and action:
+        queries.append(f"{event_title} {primary} {action}".strip())
+    if visual_entities:
+        queries.append((f"{event_title} " + " ".join(visual_entities[:4])).strip())
+    if scene_context:
+        queries.append((f"{event_title} {scene_context} {primary}".strip()))
+    if composition:
+        queries.append((f"{event_title} {composition}".strip()))
     if must_show:
-        queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:3])).strip())
+        queries.append((f"{event_title} " + " ".join(str(x) for x in must_show[:4])).strip())
     if not queries:
         queries.append(f"{event_title} {scene_description[:100]}".strip())
 
