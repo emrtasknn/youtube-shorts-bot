@@ -346,5 +346,41 @@
     "created_at": "2026-09-26T10:32:07",
     "status": "used",
     "completed_at": "2026-09-26T10:41:18"
+  },
+  {
+    "event_id": "evt_cfd7101c6c03",
+    "canonical_title": "The Pig War",
+    "aliases": [
+      "1859 Domuz Savaşı",
+      "San Juan Sınır Anlaşmazlığı"
+    ],
+    "date": "1859",
+    "date_normalized": "1859",
+    "location": "San Juan Islands, Washington Territory",
+    "entities": [
+      "Lyman Cutlar",
+      "Charles Griffin",
+      "George Pickett"
+    ],
+    "event_summary": "A confrontation between the United States and the British Empire sparked by the shooting of a pig on San Juan Island. It escalated into a naval standoff without a single shot fired at a human.",
+    "core_facts": [
+      "15 Haziran 1859'da Amerikan çiftçi Lyman Cutlar, Hudson's Bay Company'ye ait domuzu vurdu.",
+      "Olay, San Juan Adaları'nın egemenliği konusundaki uzun süreli sınır gerilimini tetikledi.",
+      "ABD ordusu George Pickett komutasında adaya asker çıkardı, İngiliz donanması ise savaş gemileriyle karşılık verdi.",
+      "Kriz, 1871 Oregon Antlaşması'na kadar diplomatik bir çıkmaz olarak 12 yıl sürdü.",
+      "Kayser I. Wilhelm'in hakemliği sonucu adalar 1872'de ABD toprağı olarak tescillendi."
+    ],
+    "claims": [
+      "İngilizlerin domuzun öldürülmesini bir bahane olarak kullanıp kullanmadığı (istila planları).",
+      "Lyman Cutlar'ın domuzu vurduktan sonra Hudson's Bay Company'ye ödeme yapmayı teklif edip etmediği veya şirketin ne kadar talep ettiği."
+    ],
+    "sources": [
+      "The Pig War: Standoff at San Juan by Mike Vouri",
+      "National Park Service: San Juan Island National Historical Park Archives"
+    ],
+    "first_video_id": "run_20260926_105345",
+    "created_at": "2026-09-26T10:45:22",
+    "status": "used",
+    "completed_at": "2026-09-26T10:53:45"
   }
 ]
