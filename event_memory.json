@@ -208,5 +208,41 @@
     "created_at": "2026-09-26T06:19:49",
     "status": "used",
     "completed_at": "2026-09-26T06:30:56"
+  },
+  {
+    "event_id": "evt_fee4160bc8f5",
+    "canonical_title": "The 1904 Olympic Marathon",
+    "aliases": [
+      "1904 St. Louis Maratonu"
+    ],
+    "date": "1904",
+    "date_normalized": "1904",
+    "location": "St. Louis, USA",
+    "entities": [
+      "Felix Carvajal",
+      "Fred Lorz",
+      "Thomas Hicks"
+    ],
+    "event_summary": "The most chaotic sporting event in history, involving runners being chased by wild dogs, consuming strychnine as a performance enhancer, and competitors catching rides in cars.",
+    "core_facts": [
+      "Maraton 30 Ağustos 1904'te St. Louis, Missouri'de gerçekleşmiştir.",
+      "Yarış, 40 derecelik sıcaklıkta ve tozlu, engebeli toprak yollarda yapılmıştır.",
+      "Fred Lorz, yarışı araçla katedip stadyuma girdiği için diskalifiye edilmiştir.",
+      "Thomas Hicks, antrenörleri tarafından performans artırıcı olarak striknin ve konyak karışımı ile zehirlenmiştir.",
+      "Felix Carvajal, yarış sırasında yolda gördüğü elma ağaçlarından çürük elmaları yediği için mide krampları yaşamıştır."
+    ],
+    "claims": [
+      "Stadyuma ilk giren kişinin Fred Lorz olduğu kabul edilse de, yarışın organizasyonel başarısızlığının birincil suçlusu konusunda tartışmalar sürmektedir.",
+      "Thomas Hicks'in maratonu bitirmesini sağlayan maddelerin tıbbi etkileri o dönemin standartlarında 'yardım' mı yoksa 'haksız avantaj' mı olduğu hala tartışmalıdır."
+    ],
+    "sources": [
+      "Olympic Games St. Louis 1904 Official Report",
+      "Charles Lucas, The Olympic Games 1904",
+      "David E. Martin, The Olympic Marathon"
+    ],
+    "first_video_id": "run_20260926_071702",
+    "created_at": "2026-09-26T07:08:35",
+    "status": "used",
+    "completed_at": "2026-09-26T07:17:02"
   }
 ]
