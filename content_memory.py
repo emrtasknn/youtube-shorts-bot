@@ -83,6 +83,8 @@ def build_content_entry(
         "tension": analysis.get("tension", 0.3),
         "script": full_text,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "visual_facts": [scene.get("visual_fact", "") for scene in scenes if scene.get("visual_fact")],
+        "visual_roles": [scene.get("visual_role", "") for scene in scenes if scene.get("visual_role")],
         "status": "completed",
     }
 
