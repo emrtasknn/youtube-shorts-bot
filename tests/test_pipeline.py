@@ -163,6 +163,23 @@ def test_turkish_upper():
     assert pipeline.turkish_upper("HELLO world") == "HELLO WORLD"
 
 
+def test_generate_youtube_title_sanitizes_ai_output(monkeypatch):
+    class FakeResponse:
+        text = '"Bir Adres Londra\'yı Nasıl Kaosa Sürükledi?" #Shorts'
+
+    monkeypatch.setattr(
+        pipeline.gemini_config,
+        "call_gemini_with_retry",
+        lambda **kwargs: FakeResponse(),
+    )
+    result = pipeline.generate_youtube_title(
+        {"canonical_title": "The Berners Street Hoax"},
+        {"story_hook": "Londra'da tek bir adres binlerce ziyaretçi çekti."},
+        [{"narration": "Bir adres verildi ve olay büyüdü."}],
+    )
+    assert result == "Bir Adres Londra'yı Nasıl Kaosa Sürükledi?"
+
+
 def test_subtitle_safe_position_keeps_overlay_above_lower_ui():
     assert pipeline._subtitle_safe_position(1920) < int(1920 * 0.70)
     y = pipeline._subtitle_safe_position(1920)
