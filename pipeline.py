@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections import Counter
 import logging
 import os
 import random
@@ -199,7 +200,7 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} has invalid visual_role: {visual_role}")
         if not isinstance(visual_intent, dict):
             raise ValueError(f"Scene {i} is missing visual_intent")
-        required_intent = ["primary_subject", "visual_type", "must_show", "avoid", "search_queries"]
+        required_intent = ["primary_subject", "visual_type", "visual_action", "scene_context", "shot_type", "composition", "must_show", "avoid", "search_queries"]
         missing_intent = [key for key in required_intent if not visual_intent.get(key)]
         if missing_intent:
             raise ValueError(f"Scene {i} visual_intent is incomplete: {missing_intent}")
@@ -207,6 +208,10 @@ def validate_script(data: dict) -> list[dict]:
             raise ValueError(f"Scene {i} visual_intent must_show/avoid must be lists")
         if not isinstance(visual_intent.get("search_queries"), list):
             raise ValueError(f"Scene {i} visual_intent search_queries must be a list")
+        if "visual_entities" in visual_intent and not isinstance(visual_intent.get("visual_entities"), list):
+            raise ValueError(f"Scene {i} visual_intent visual_entities must be a list")
+        if len(visual_intent.get("must_show", [])) < 2 or len(visual_intent.get("avoid", [])) < 2:
+            raise ValueError(f"Scene {i} visual_intent must_show/avoid need at least 2 concrete items")
         # Gemini may paraphrase the duplicated visual_fact/visual_role fields.
         # The scene-level fields are canonical; synchronize the nested intent instead
         # of rejecting an otherwise valid script for a wording-only mismatch.
@@ -243,6 +248,47 @@ def validate_script(data: dict) -> list[dict]:
             "visual_intent": visual_intent,
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
+
+def validate_visual_storyboard(scenes: list[dict]) -> dict:
+    """Validate the scene plan as a storyboard, not just seven independent prompts."""
+    if len(scenes) != SCENE_COUNT:
+        raise ValueError(f"Storyboard requires exactly {SCENE_COUNT} scenes")
+
+    visual_types = [str(s.get("visual_intent", {}).get("visual_type", "")).lower() for s in scenes]
+    primary_subjects = [
+        re.sub(r"\\s+", " ", str(s.get("visual_intent", {}).get("primary_subject", "")).lower()).strip()
+        for s in scenes
+    ]
+    shot_types = [str(s.get("visual_intent", {}).get("shot_type", "")).lower() for s in scenes]
+
+    type_counts = Counter(visual_types)
+    subject_counts = Counter(primary_subjects)
+    if type_counts and max(type_counts.values()) >= 5:
+        repeated = max(type_counts, key=type_counts.get)
+        raise ValueError(
+            f"Visual storyboard is too homogeneous: visual_type '{repeated}' appears {type_counts[repeated]} times"
+        )
+    if subject_counts and max(subject_counts.values()) >= 4:
+        repeated = max(subject_counts, key=subject_counts.get)
+        raise ValueError(
+            f"Visual storyboard repeats the same primary subject too often: '{repeated}'"
+        )
+
+    missing_action = [
+        idx for idx, scene in enumerate(scenes, 1)
+        if not str(scene.get("visual_intent", {}).get("visual_action", "")).strip()
+    ]
+    if missing_action:
+        raise ValueError(f"Visual storyboard missing visual_action in scenes: {missing_action}")
+
+    unique_shots = len(set(shot_types))
+    return {
+        "scene_count": len(scenes),
+        "visual_type_counts": dict(type_counts),
+        "unique_shot_types": unique_shots,
+        "unique_primary_subjects": len(set(primary_subjects)),
+    }
+
 
     # Keep Shorts comfortably short while allowing natural variation.
     if total_words < MIN_TOTAL_WORDS or total_words > MAX_TOTAL_WORDS:
@@ -649,6 +695,8 @@ Kurallar:
                     decoder = json.JSONDecoder()
                     data, _ = decoder.raw_decode(raw_json)
                 scenes = validate_script(data)
+                storyboard_qa = validate_visual_storyboard(scenes)
+                log.info("Visual storyboard QA: %s", storyboard_qa)
                 topic_compat = {"title": topic_title} # For QA
                 qa_result = evaluate_script_quality(scenes, topic_compat)
                 log.info("Script QA evaluated: score=%s, issues=%s", qa_result["score"], qa_result["issues"])
@@ -669,6 +717,8 @@ Kurallar:
                     "Her sahne 7-10 kelime hedeflesin ve 6-12 sınırını korusun. "
                     "visual_fact ve visual_intent.visual_fact aynı anlamı taşımalı; "
                     "visual_role ve visual_intent.visual_role aynı olmalı. "
+                    "visual_action, scene_context, shot_type ve composition alanlarını doldur; "
+                    "bunlar narrationdaki tek bir nesneyi değil olayın görsel eylemini tarif etmeli. "
                     "Çıktıda yalnızca TEK bir JSON nesnesi üret; JSON'dan sonra hiçbir metin ekleme."
                 )
 
@@ -1879,6 +1929,9 @@ def run(auto_publish: bool | None = None):
             "information_density": v_source.get("information_density", 0.0),
             "visual_fact": scene.get("visual_fact", ""),
             "visual_role": scene.get("visual_role", ""),
+            "visual_action": scene.get("visual_intent", {}).get("visual_action", ""),
+            "shot_type": scene.get("visual_intent", {}).get("shot_type", ""),
+            "composition": scene.get("visual_intent", {}).get("composition", ""),
         }
         source_type_for_enhancement = v_source.get("source_type", "ai_reconstruction") if image_downloaded else "ai_reconstruction"
         if not image_downloaded:
@@ -1886,14 +1939,20 @@ def run(auto_publish: bool | None = None):
             ai_prompt = (
                 f"{scene['image_prompt']} "
                 f"Visual fact to depict: {scene.get('visual_fact', '')}. "
+                f"Visual action: {intent.get('visual_action', '')}. "
+                f"Scene context: {intent.get('scene_context', '')}. "
+                f"Shot type: {intent.get('shot_type', '')}. "
+                f"Composition: {intent.get('composition', '')}. "
+                f"Visual entities: {', '.join(intent.get('visual_entities', []))}. "
                 f"Visual role: {scene.get('visual_role', '')}. "
                 f"Primary subject: {intent.get('primary_subject', '')}. "
                 f"Must visibly include: {', '.join(intent.get('must_show', []))}. "
                 f"Avoid: {', '.join(intent.get('avoid', []))}. "
                 f"Historical event context: {topic_compat['title']}. "
-                "Depict the concrete visual fact first; do not substitute a generic landscape, generic portrait, or keyword collage. "
-                "The main historical subject must be clearly visible and event-specific. "
-                "No modern objects, no text, no watermark, documentary historical reconstruction."
+                "Depict the historical ACTION and relationship first, not an isolated object mentioned in narration. "
+                "The frame must communicate who/what is doing what, where and in what historical context. "
+                "Do not substitute a generic landscape, generic portrait, keyword collage, isolated prop, or stock-photo composition. "
+                "Respect the requested shot type and composition. No modern objects, no text, no watermark, documentary historical reconstruction."
             )
             download_ai_image(ai_prompt, image_path)
 
@@ -2047,6 +2106,7 @@ def run(auto_publish: bool | None = None):
         },
         "visual_sources": visual_sources,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
+        "visual_storyboard_qa": storyboard_qa,
         "visual_qa": visual_qa,
         "visual_reuse_warnings": visual_warnings,
         "image_enhancement": {
