@@ -640,16 +640,22 @@ Kurallar:
 14. visual_role, görselin rolünü belirtmeli: evidence, mechanism, reconstruction, context_map, person_or_entity, aftermath veya atmosphere.
 15. primary_subject, o sahnede gerçekten görülmesi gereken ana nesne/kişi/olay olmalı.
 16. must_show en az 2 somut unsur, avoid ise en az 2 yanlış/ilgisiz görsel türü içermeli.
-17. search_queries, visual_fact ve olayın spesifik kimliği etrafında 2-4 tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
-18. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
-19. "80 milyon ağaç devrildi" anlatılıyorsa normal orman değil devrilmiş/hasar görmüş ağaçlar veya blast pattern hedefle.
-20. "atmosferde hava patlaması" anlatılıyorsa generic Earth/sunset değil giriş yapan gök cismi, atmosferik patlama veya şok dalgası göster.
-21. Belirli bir kişi/kurum adı anlatılıyorsa generic person kullanma; gerçek arşiv görseli veya açıkça hedeflenmiş historical reconstruction oluştur.
-22. atmosphere yalnızca geçiş/duygu amacıyla kullanılabilir; ana tarihsel bilgi taşıyan sahnelerde evidence/mechanism/reconstruction tercih et.
-23. Görsel arketipleri factual intent'i ezmemeli. Metin harita gerektirmiyorsa sırf çeşitlilik için map kullanma.
-24. AI fallback, visual_fact'i birebir görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
+17. visual_action, narrationdaki tarihsel olayın GÖRÜNÜR EYLEMİDİR. Bir nesnenin adı olamaz. "bir şişe", "elma", "bina" gibi tek başına cevaplar yasaktır.
+18. scene_context olayın görsel olarak gerçekleştiği yer/dönem/ortamı belirtmeli.
+19. shot_type, wide/medium/close-up/detail/overhead gibi kadraj stratejisini belirtmeli.
+20. composition, ana özne + eylem + yardımcı unsur + çevre arasındaki görsel ilişkiyi tarif etmeli.
+21. visual_entities, sahnede görünmesi gereken belirli kişi/kurum/nesne adlarını içerebilir; mümkünse 1-4 öğe kullan.
+22. search_queries, visual_fact + visual_action + olayın spesifik kimliği etrafında 2-4 tarihsel arama sorgusu içermeli. Ham narration'ı aynen sorgu olarak kullanma.
+23. Görsel plan bir "story unit" olmalı: tek bir kelimeyi/objeyi değil, mümkün olduğunda olayın eylemini ve ilişkisini göstermeli.
+24. Bir sahnede "10.000 mermi" anlatılıyorsa harita/manzara değil mühimmat veya döneme ait askerî ekipman hedefle.
+25. "80 milyon ağaç devrildi" anlatılıyorsa normal orman değil devrilmiş/hasar görmüş ağaçlar veya blast pattern hedefle.
+26. "atmosferde hava patlaması" anlatılıyorsa generic Earth/sunset değil giriş yapan gök cismi, atmosferik patlama veya şok dalgası göster.
+27. Belirli bir kişi/kurum adı anlatılıyorsa generic person kullanma; gerçek arşiv görseli veya açıkça hedeflenmiş historical reconstruction oluştur.
+28. atmosphere yalnızca geçiş/duygu amacıyla kullanılabilir; ana tarihsel bilgi taşıyan sahnelerde evidence/mechanism/reconstruction tercih et.
+29. Görsel arketipleri factual intent'i ezmemeli. Metin harita gerektirmiyorsa sırf çeşitlilik için map kullanma.
+30. AI fallback, visual_fact + visual_action + composition'ı birlikte görselleştiren reconstruction olmalı; keyword collage veya generic stock estetiği olamaz.
 
-25. Her sahne için `event_specificity` ve `information_density` planlama puanlarını 0-1 arasında ver.
+31. Her sahne için `event_specificity` ve `information_density` planlama puanlarını 0-1 arasında ver.
 26. evidence, mechanism, reconstruction, context_map, person_or_entity ve aftermath rollerinde event_specificity en az 0.70 hedefle.
 27. atmosphere rolünü en fazla 1 sahnede kullan ve information_density düşük olabilir; diğer sahneler bilgi taşımalıdır.
 
@@ -668,10 +674,15 @@ Kurallar:
         "visual_role": "evidence",
         "primary_subject": "...",
         "visual_type": "historical_photo/artifact/document/map/person/location/crowd/action/reconstruction",
+        "visual_action": "...",
+        "scene_context": "...",
+        "shot_type": "medium action shot",
+        "composition": "who does what with which supporting element in what environment",
+        "visual_entities": ["specific person", "specific object"],
         "must_show": ["somut unsur 1", "somut unsur 2"],
         "avoid": ["ilgisiz görsel 1", "ilgisiz görsel 2"],
         "search_queries": ["spesifik arama 1", "spesifik arama 2"]
-      }},
+      }},,
       "ending_strategy": "semantic"
     }}
   ]
