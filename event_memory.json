@@ -592,5 +592,40 @@
     "created_at": "2026-09-26T16:44:38",
     "status": "used",
     "completed_at": "2026-09-26T16:53:22"
+  },
+  {
+    "event_id": "evt_a2adb2819d86",
+    "canonical_title": "The Ghost Blimp L-8",
+    "aliases": [
+      "Hayalet Zeplin L-8",
+      "Kayıp Zeplin Vakası"
+    ],
+    "date": "1942",
+    "date_normalized": "1942",
+    "location": "San Francisco, USA",
+    "entities": [
+      "Ernest DeWitt Cody",
+      "Charles Ellis Adams"
+    ],
+    "event_summary": "İkinci Dünya Savaşı sırasında bir devriye görevine çıkan zeplin, içi tamamen boş ve kapıları kilitli bir şekilde San Francisco sokaklarına çakıldı.",
+    "core_facts": [
+      "L-8 zeplini 16 Ağustos 1942 sabahı Treasure Island'dan rutin devriye görevi için havalandı.",
+      "Zeplin, görev süresinden kısa bir süre sonra San Francisco sokaklarına, Daly City civarına kontrolsüzce indi.",
+      "İniş sırasında zeplin ciddi bir dış hasar almadı ve motorları çalışır durumdaydı.",
+      "Zeplinin kapıları içeriden kilitliydi ve tüm acil durum ekipmanları, paraşütler ve can yelekleri yerindeydi.",
+      "Pilotlar Teğmen Ernest Cody ve Teğmen Charles Adams, olay anından itibaren bir daha asla bulunamadı."
+    ],
+    "claims": [
+      "Pilotların devriye sırasında bir Japon denizaltısı görmüş olabileceği ve buna karşılık manevra yapmış olabileceği iddiası.",
+      "Kabin içindeki radyo sisteminin mürettebatın yardım çağırmasına engel olacak şekilde bozulmuş olup olmadığı."
+    ],
+    "sources": [
+      "US Navy Naval History and Heritage Command: The L-8 Ghost Blimp Incident Files",
+      "Daly City Police Department Original Investigation Report (1942)"
+    ],
+    "first_video_id": "run_20260926_192813",
+    "created_at": "2026-09-26T19:16:48",
+    "status": "used",
+    "completed_at": "2026-09-26T19:28:13"
   }
 ]
