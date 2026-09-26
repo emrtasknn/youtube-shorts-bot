@@ -453,5 +453,42 @@
     "created_at": "2026-09-26T11:27:57",
     "status": "used",
     "completed_at": "2026-09-26T11:36:39"
+  },
+  {
+    "event_id": "evt_3f651a4005ed",
+    "canonical_title": "The disappearance of the Franklin Expedition",
+    "aliases": [
+      "Franklin Keşif Gezisi Kaybı",
+      "HMS Erebus ve HMS Terror'ın Kayboluşu"
+    ],
+    "date": "1845",
+    "date_normalized": "1845",
+    "location": "Arctic Canada",
+    "entities": [
+      "Sir John Franklin",
+      "HMS Erebus",
+      "HMS Terror"
+    ],
+    "event_summary": "Britanya Kraliyet Donanması'nın Kuzeybatı Geçidi'ni bulmak için başlattığı keşif gezisi, iki geminin buzlara sıkışmasıyla sonuçlandı. 129 kişilik mürettebattan hiçbiri kurtulamazken, kalıntılar yıllar süren arayışlar sonucu bulundu.",
+    "core_facts": [
+      "Keşif gezisi 1845 yılında Sir John Franklin komutasında HMS Erebus ve HMS Terror gemileriyle başlatıldı.",
+      "129 kişilik mürettebatın tamamı hayatını kaybetmiştir.",
+      "HMS Erebus 2014 yılında, HMS Terror ise 2016 yılında Kuzey Kanada sularında keşfedilmiştir.",
+      "Adli tıp incelemeleri ve kemik analizleri, mürettebatın yüksek oranda kurşun zehirlenmesine maruz kaldığını doğrulamıştır.",
+      "1859 yılında bulunan 'Victory Point' notu, gemilerin sıkıştığını ve Franklin'in ölüm tarihini kanıtlayan tek yazılı belgedir."
+    ],
+    "claims": [
+      "Mürettebatın ölümü öncesinde gemide kitlesel bir delilik veya disiplin kaybı yaşanıp yaşanmadığı.",
+      "Besin kaynaklarının bozulma süreci ve konserve kutularının lehim hatalarının hayatta kalma üzerindeki mutlak etkisi."
+    ],
+    "sources": [
+      "Arctic Journal of the Franklin Expedition",
+      "Scott Cookman - Ice Blink: The Fate of the Franklin Expedition",
+      "National Maritime Museum Archives: Franklin Expedition Records"
+    ],
+    "first_video_id": "run_20260926_121313",
+    "created_at": "2026-09-26T12:01:02",
+    "status": "used",
+    "completed_at": "2026-09-26T12:13:13"
   }
 ]
