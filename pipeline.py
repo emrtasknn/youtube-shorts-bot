@@ -1611,39 +1611,79 @@ def validate_video_quality(video_path: Path) -> dict:
 
 
 def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_relevance: float = 0.55) -> dict:
-    """Final deterministic gate: every real visual must meet the relevance threshold."""
+    """Final deterministic gate for source metadata and visual planning quality."""
     if len(visual_sources) != len(scenes):
         raise ValueError(f"Visual QA failed: {len(visual_sources)} sources for {len(scenes)} scenes")
+
     results = []
     for idx, (source, scene) in enumerate(zip(visual_sources, scenes), 1):
         source_type = source.get("source_type", "")
+        visual_role = str(scene.get("visual_role", "")).lower()
+        planned_specificity = float(scene.get("event_specificity", 0.0))
+        planned_density = float(scene.get("information_density", 0.0))
+        visual_fact = str(scene.get("visual_fact", "")).strip()
+
+        if not visual_fact:
+            raise ValueError(f"Visual QA failed: scene {idx} has no visual_fact")
+        if visual_role != "atmosphere" and planned_specificity < 0.70:
+            raise ValueError(
+                f"Visual QA failed: scene {idx} planned event specificity {planned_specificity:.2f} < 0.70"
+            )
+
         if source_type in ("wikimedia", "openverse"):
-            score = float(source.get("relevance_score", 0))
-            if score < min_relevance:
+            relevance = float(source.get("relevance_score", 0))
+            specificity = float(source.get("event_specificity", 0))
+            density = float(source.get("information_density", 0))
+            if relevance < min_relevance:
                 raise ValueError(
-                    f"Visual QA failed: scene {idx} real visual relevance {score:.2f} "
+                    f"Visual QA failed: scene {idx} real visual relevance {relevance:.2f} "
                     f"is below threshold {min_relevance:.2f}"
                 )
+            if visual_role != "atmosphere" and specificity < 0.35:
+                raise ValueError(
+                    f"Visual QA failed: scene {idx} real visual specificity {specificity:.2f} < 0.35"
+                )
             results.append({
-                "scene": idx, "source_type": source_type,
-                "relevance_score": score, "title": source.get("title", ""),
-                "query": source.get("search_query", ""), "decision": "PASS_REAL",
+                "scene": idx,
+                "source_type": source_type,
+                "relevance_score": relevance,
+                "event_specificity": specificity,
+                "information_density": density,
+                "planned_event_specificity": planned_specificity,
+                "planned_information_density": planned_density,
+                "visual_fact": visual_fact,
+                "visual_role": visual_role,
+                "title": source.get("title", ""),
+                "query": source.get("search_query", ""),
+                "decision": "PASS_REAL",
             })
         elif source_type == "ai_reconstruction":
             intent = scene.get("visual_intent", {})
             if not intent.get("primary_subject") or not intent.get("must_show"):
                 raise ValueError(f"Visual QA failed: scene {idx} AI reconstruction has no concrete visual intent")
             results.append({
-                "scene": idx, "source_type": source_type, "decision": "PASS_AI_INTENT",
+                "scene": idx,
+                "source_type": source_type,
+                "decision": "PASS_AI_INTENT_PLAN",
                 "primary_subject": intent.get("primary_subject", ""),
+                "visual_fact": visual_fact,
+                "visual_role": visual_role,
+                "planned_event_specificity": planned_specificity,
+                "planned_information_density": planned_density,
             })
         else:
             raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
+
+    atmosphere_count = sum(1 for scene in results if scene.get("visual_role") == "atmosphere")
+    if atmosphere_count > 1:
+        raise ValueError(f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); maximum is 1")
+
     return {
         "passed": True,
         "scene_count": len(results),
         "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
         "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
+        "atmosphere_scenes": atmosphere_count,
         "scenes": results,
     }
 
