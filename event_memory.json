@@ -311,5 +311,40 @@
     "created_at": "2026-09-26T10:16:08",
     "status": "used",
     "completed_at": "2026-09-26T10:24:40"
+  },
+  {
+    "event_id": "evt_c5bca85174fc",
+    "canonical_title": "The Balloon Bomb Attack on the US Mainland",
+    "aliases": [
+      "Fu-Go balon bombaları",
+      "Japon balon saldırıları"
+    ],
+    "date": "1944-1945",
+    "date_normalized": "1944",
+    "location": "North America",
+    "entities": [
+      "Imperial Japanese Army",
+      "US Office of Censorship"
+    ],
+    "event_summary": "Japan launched over 9,000 hydrogen-filled paper balloons carrying incendiary devices across the Pacific to ignite US forests. It remains one of the longest-range attacks in history.",
+    "core_facts": [
+      "Japon İmparatorluk Ordusu, 1944-1945 yılları arasında Kuzey Amerika'ya yaklaşık 9.300 adet 'Fu-Go' hidrojen balonu fırlatmıştır.",
+      "Balonlar, jet akımlarından yararlanarak Pasifik Okyanusu'nu aşmış ve ABD anakarasına ulaşmıştır.",
+      "5 Mayıs 1945'te Oregon, Bly yakınlarında bir balonun infilak etmesi sonucu 6 kişi (bir öğretmen ve beş öğrenci) hayatını kaybetmiştir.",
+      "ABD Hükümeti ve Office of Censorship, halkta panik oluşmaması ve Japonların saldırının etkisini öğrenmemesi için basına sıkı bir sansür uygulamıştır.",
+      "Balonların çoğu orman yangınları başlatmak amacıyla tasarlanmış yangın bombaları ve antipersonel bombalar taşımaktaydı."
+    ],
+    "claims": [
+      "Japonya'nın biyolojik silah (bakteriyel ajanlar) taşıyıp taşımadığı konusu tarihçiler arasında tartışmalıdır; bazı kanıtlar planlandığını ancak uygulanmadığını öne sürmektedir.",
+      "Balonların askeri etkinliği; bazı stratejistler bunların tamamen etkisiz olduğunu savunurken, bazıları ABD kaynaklarının savunma için gereksiz yere bölündüğünü iddia etmektedir."
+    ],
+    "sources": [
+      "Mikesh, Robert C. 'Japan's World War II Balloon Bomb Attacks on North America'",
+      "National Archives and Records Administration (NARA) - Japanese Balloon Bomb Files"
+    ],
+    "first_video_id": "run_20260926_104118",
+    "created_at": "2026-09-26T10:32:07",
+    "status": "used",
+    "completed_at": "2026-09-26T10:41:18"
   }
 ]
