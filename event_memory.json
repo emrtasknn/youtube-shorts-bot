@@ -278,5 +278,38 @@
     "created_at": "2026-09-26T08:57:54",
     "status": "used",
     "completed_at": "2026-09-26T09:08:21"
+  },
+  {
+    "event_id": "evt_8d32b57d1ad6",
+    "canonical_title": "The Antikythera Mechanism",
+    "aliases": [
+      "Antikythera Mekanizması"
+    ],
+    "date": "2nd century BC",
+    "date_normalized": "-150",
+    "location": "Greece",
+    "entities": [
+      "Valerios Stais"
+    ],
+    "event_summary": "An ancient Greek hand-powered orrery discovered in a shipwreck, capable of predicting astronomical positions and eclipses with remarkable precision.",
+    "core_facts": [
+      "Mekanizma M.Ö. 2. yüzyıla tarihlenen bir Roma batığında bulundu.",
+      "Cihaz, karmaşık diferansiyel dişli sistemleri kullanan el yapımı bir astronomik hesaplayıcıdır.",
+      "1902 yılında arkeolog Valerios Stais, müze envanterindeki parçalar arasında mekanizmanın ilk tanımlanabilir kalıntılarını fark etti.",
+      "Mekanizma, Meton döngüsü (19 yıllık ay takvimi döngüsü) dahil olmak üzere güneş ve ay tutulmalarını öngörebilmektedir.",
+      "Cihazın üzerindeki bronz levhalarda Yunanca astronomik talimatlar ve indeksler yer almaktadır."
+    ],
+    "claims": [
+      "Cihazın tasarımının Arşimet'in okuluna mı yoksa Rodoslu Posidonius'un atölyesine mi ait olduğu konusu hala tartışmalıdır.",
+      "Mekanizmanın antik dünyada ne kadar yaygın olduğu; tek bir prototip mi yoksa seri üretim bir teknoloji mi olduğu belirsizliğini korumaktadır."
+    ],
+    "sources": [
+      "Derek J. de Solla Price, 'Gears from the Greeks'",
+      "The Antikythera Mechanism Research Project (Nature, 2006)"
+    ],
+    "first_video_id": "run_20260926_102440",
+    "created_at": "2026-09-26T10:16:08",
+    "status": "used",
+    "completed_at": "2026-09-26T10:24:40"
   }
 ]
