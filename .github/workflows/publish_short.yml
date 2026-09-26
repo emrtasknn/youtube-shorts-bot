@@ -1,0 +1,130 @@
+name: Publish Approved Short
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "GitHub Actions run ID containing the generated artifact"
+        required: true
+        type: string
+      source_run_number:
+        description: "GitHub Actions run number containing the generated artifact"
+        required: true
+        type: string
+      approval_run_id:
+        description: "Telegram approval run ID"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Download generated artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: shorts-run-${{ inputs.source_run_number }}
+          path: source_artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.source_run_id }}
+
+      - name: Locate generated video
+        id: locate
+        shell: bash
+        run: |
+          VIDEO="$(find source_artifact -type f -name 'final_short.mp4' | head -n 1)"
+          METADATA="$(find source_artifact -type f -name 'metadata.json' | head -n 1)"
+          test -n "$VIDEO"
+          test -n "$METADATA"
+          echo "video=$VIDEO" >> "$GITHUB_OUTPUT"
+          echo "metadata=$METADATA" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to YouTube
+        id: upload
+        env:
+          YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
+          YOUTUBE_CLIENT_SECRETS_JSON: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}
+          YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          import youtube_uploader
+
+          video = Path(os.environ["VIDEO"])
+          metadata = json.loads(Path(os.environ["METADATA"]).read_text(encoding="utf-8"))
+          scenes = metadata.get("scenes", [])
+          full_text = " ".join(str(s.get("narration", "")) for s in scenes).strip()
+          event = metadata.get("event_record", {})
+          topic = {
+              "title": event.get("canonical_title", "Tarihin Bilinmeyen Gizemi"),
+              "hook_question": "",
+          }
+
+          result = youtube_uploader.upload_shorts_video(
+              video_path=video,
+              topic=topic,
+              full_text=full_text,
+          )
+          Path("publish_result.json").write_text(
+              json.dumps(result, ensure_ascii=False),
+              encoding="utf-8",
+          )
+          print(json.dumps(result, ensure_ascii=False))
+          PY
+        env:
+          VIDEO: ${{ steps.locate.outputs.video }}
+          METADATA: ${{ steps.locate.outputs.metadata }}
+
+      - name: Notify Telegram control service
+        if: always()
+        env:
+          CONTROL_API_URL: ${{ secrets.CONTROL_API_URL }}
+          CONTROL_API_SECRET: ${{ secrets.CONTROL_API_SECRET }}
+          APPROVAL_RUN_ID: ${{ inputs.approval_run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          result_path = "publish_result.json"
+          payload = {
+              "run_id": os.environ["APPROVAL_RUN_ID"],
+              "status": "published" if os.path.exists(result_path) else "publish_failed",
+          }
+          if os.path.exists(result_path):
+              data = json.loads(open(result_path, encoding="utf-8").read())
+              payload.update({
+                  "youtube_url": data.get("url", ""),
+                  "youtube_video_id": data.get("video_id", ""),
+              })
+          else:
+              payload["error"] = "YouTube upload workflow failed before producing publish_result.json"
+
+          req = urllib.request.Request(
+              os.environ["CONTROL_API_URL"].rstrip("/") + "/publish-result",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Content-Type": "application/json",
+                  "X-Control-Secret": os.environ["CONTROL_API_SECRET"],
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=20) as response:
+              print(response.read().decode())
+          PY
