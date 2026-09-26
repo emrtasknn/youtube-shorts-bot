@@ -200,6 +200,35 @@ export default {
         return json({ ok: true });
       }
 
+      if (url.pathname === "/publish-result") {
+        if (!secret || secret !== env.CONTROL_API_SECRET) return json({ error: "unauthorized" }, 401);
+        const result = await request.json();
+        if (!result?.run_id) return json({ error: "run_id_required" }, 400);
+        const state = await getState(env, result.run_id);
+        if (!state) return json({ error: "approval_not_found" }, 404);
+
+        state.status = result.status || "published";
+        state.youtube_url = result.youtube_url || "";
+        state.youtube_video_id = result.youtube_video_id || "";
+        state.error = result.error || "";
+        state.updated_at = new Date().toISOString();
+        await saveState(env, result.run_id, state);
+
+        const title = state.topic?.title || "Video";
+        if (state.status === "published") {
+          await telegram(env, "sendMessage", {
+            chat_id: env.TELEGRAM_CHAT_ID,
+            text: `🎉 ${title} başarıyla YouTube Shorts'a yüklendi.\\n\\n🔗 ${state.youtube_url}`,
+          });
+        } else {
+          await telegram(env, "sendMessage", {
+            chat_id: env.TELEGRAM_CHAT_ID,
+            text: `⚠️ ${title} YouTube'a yüklenemedi.\\n\\n${String(state.error || "Bilinmeyen hata").slice(0, 1500)}`,
+          });
+        }
+        return json({ ok: true });
+      }
+
       return json({ error: "not_found" }, 404);
     } catch (err) {
       console.error(err);
