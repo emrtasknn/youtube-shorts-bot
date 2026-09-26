@@ -2,6 +2,22 @@ name: Daily Shorts Generator
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Generation mode"
+        required: false
+        default: "normal"
+        type: string
+      source_run_id:
+        description: "Source GitHub Actions run ID for regeneration context"
+        required: false
+        default: ""
+        type: string
+      source_event_id:
+        description: "Event ID being replaced"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: '0 7 * * *'
 
@@ -52,9 +68,15 @@ jobs:
           YOUTUBE_CLIENT_SECRETS_JSON: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
           AUTO_PUBLISH: ${{ secrets.AUTO_PUBLISH || 'false' }}
+          CONTROL_API_URL: ${{ secrets.CONTROL_API_URL }}
+          CONTROL_API_SECRET: ${{ secrets.CONTROL_API_SECRET }}
+          GENERATION_MODE: ${{ inputs.mode || 'normal' }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id || '' }}
+          SOURCE_EVENT_ID: ${{ inputs.source_event_id || '' }}
         run: python pipeline.py
 
       - name: Commit state changes
+        if: always()
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
