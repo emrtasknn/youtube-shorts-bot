@@ -20,6 +20,7 @@ from googleapiclient.http import MediaFileUpload
 log = logging.getLogger("shorts-bot.youtube")
 
 YOUTUBE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/youtube.upload"]
+YOUTUBE_PLAYLIST_SCOPE = "https://www.googleapis.com/auth/youtube"
 DEFAULT_CLIENT_SECRETS_FILE = Path("client_secrets.json")
 DEFAULT_TOKEN_FILE = Path("token.json")
 
@@ -262,9 +263,58 @@ def upload_shorts_video(
         actual_privacy,
     )
 
+    playlist_id = ""
+    content_type = str((topic or {}).get("content_type", "TREND_HISTORY"))
+    playlist_env = {
+        "TREND_HISTORY": "YOUTUBE_PLAYLIST_TREND_HISTORY",
+        "TODAY_IN_HISTORY": "YOUTUBE_PLAYLIST_TODAY_IN_HISTORY",
+        "AYT_HISTORY": "YOUTUBE_PLAYLIST_AYT_HISTORY",
+        "HISTORY_FACT": "YOUTUBE_PLAYLIST_HISTORY_FACT",
+        "CUSTOM": "YOUTUBE_PLAYLIST_CUSTOM",
+    }.get(content_type, "")
+    if playlist_env:
+        playlist_id = os.environ.get(playlist_env, "").strip()
+
+    playlist_result = {"status": "skipped", "playlist_id": playlist_id}
+    if playlist_id:
+        try:
+            # playlistItems.insert requires the broader YouTube account scope.
+            if not hasattr(client, "playlistItems"):
+                raise RuntimeError("YouTube client does not expose playlistItems")
+            item = client.playlistItems().insert(
+                part="snippet",
+                body={
+                    "snippet": {
+                        "playlistId": playlist_id,
+                        "resourceId": {
+                            "kind": "youtube#video",
+                            "videoId": video_id,
+                        },
+                    }
+                },
+            ).execute()
+            playlist_result = {
+                "status": "added",
+                "playlist_id": playlist_id,
+                "playlist_item_id": item.get("id", ""),
+            }
+            log.info("Added video %s to playlist %s", video_id, playlist_id)
+        except Exception as exc:
+            # Never turn a successful YouTube upload into a failed publish just
+            # because a playlist is not configured or the OAuth token lacks the
+            # broader playlist-management scope.
+            playlist_result = {
+                "status": "failed",
+                "playlist_id": playlist_id,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            log.warning("Playlist insertion failed for %s: %s", video_id, exc)
+
     return {
         "video_id": video_id,
         "url": youtube_url,
         "title": metadata["snippet"]["title"],
         "privacy_status": actual_privacy,
+        "content_type": content_type,
+        "playlist": playlist_result,
     }
