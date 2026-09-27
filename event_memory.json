@@ -732,5 +732,39 @@
     "created_at": "2026-09-27T10:20:06",
     "status": "used",
     "completed_at": "2026-09-27T10:29:36"
+  },
+  {
+    "event_id": "evt_808e497f1ea2",
+    "canonical_title": "The Green Children of Woolpit",
+    "aliases": [
+      "Woolpit'in yeşil çocukları"
+    ],
+    "date": "12th century",
+    "date_normalized": "1150",
+    "location": "Woolpit, England",
+    "entities": [
+      "Ralph of Coggeshall",
+      "William of Newburgh"
+    ],
+    "event_summary": "Two children with green skin reportedly appeared in the village of Woolpit speaking an unknown language and dressed in strange fabrics.",
+    "core_facts": [
+      "Olay 12. yüzyıl İngiltere'sinde, Kral Stephen hükümdarlığı döneminde Woolpit köyünde gerçekleşmiştir.",
+      "İki çocuk, alışılmadık yeşil bir cilt tonuyla köydeki bir çukurun yakınında bulunmuştur.",
+      "Çocuklar başlangıçta sadece fasulye yemiş, diğer tüm yiyecekleri reddetmişlerdir.",
+      "Çocuklardan biri vaftiz edildikten kısa bir süre sonra hastalanarak ölmüştür.",
+      "Hayatta kalan kız çocuğu zamanla İngilizce öğrenmiş ve cilt rengi normal bir tona dönmüştür."
+    ],
+    "claims": [
+      "Çocukların 'Aziz Martin'in Ülkesi' adında yeraltı bir dünyadan geldikleri iddiası.",
+      "Çocukların konuştuğu dilin kökeni; bazı teoriler bunun yozlaşmış bir Orta Çağ Flaman lehçesi olduğunu öne sürer."
+    ],
+    "sources": [
+      "William of Newburgh - Historia rerum Anglicarum",
+      "Ralph of Coggeshall - Chronicon Anglicanum"
+    ],
+    "first_video_id": "run_20260927_122330",
+    "created_at": "2026-09-27T12:13:20",
+    "status": "used",
+    "completed_at": "2026-09-27T12:23:30"
   }
 ]
