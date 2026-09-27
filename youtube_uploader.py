@@ -21,6 +21,7 @@ log = logging.getLogger("shorts-bot.youtube")
 
 YOUTUBE_UPLOAD_SCOPE = ["https://www.googleapis.com/auth/youtube.upload"]
 YOUTUBE_PLAYLIST_SCOPE = "https://www.googleapis.com/auth/youtube"
+YOUTUBE_SCOPES = [*YOUTUBE_UPLOAD_SCOPE, YOUTUBE_PLAYLIST_SCOPE]
 DEFAULT_CLIENT_SECRETS_FILE = Path("client_secrets.json")
 DEFAULT_TOKEN_FILE = Path("token.json")
 
@@ -112,7 +113,7 @@ def get_youtube_client(
     # 1. Check local token.json
     if tok_file.exists():
         try:
-            creds = Credentials.from_authorized_user_file(str(tok_file), YOUTUBE_UPLOAD_SCOPE)
+            creds = Credentials.from_authorized_user_file(str(tok_file), YOUTUBE_SCOPES)
         except Exception as exc:
             log.warning("Could not read token file %s: %s", tok_file, exc)
 
@@ -120,7 +121,7 @@ def get_youtube_client(
     if not creds and os.environ.get("YOUTUBE_TOKEN_JSON"):
         try:
             token_data = json.loads(os.environ["YOUTUBE_TOKEN_JSON"])
-            creds = Credentials.from_authorized_user_info(token_data, YOUTUBE_UPLOAD_SCOPE)
+            creds = Credentials.from_authorized_user_info(token_data, YOUTUBE_SCOPES)
         except Exception as exc:
             log.warning("Could not load YOUTUBE_TOKEN_JSON env: %s", exc)
 
@@ -146,7 +147,7 @@ def get_youtube_client(
                 token_uri="https://oauth2.googleapis.com/token",
                 client_id=client_id,
                 client_secret=client_secret,
-                scopes=YOUTUBE_UPLOAD_SCOPE,
+                scopes=YOUTUBE_SCOPES,
             )
         elif os.environ.get("YOUTUBE_REFRESH_TOKEN") or os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("YOUTUBE_CLIENT_SECRET"):
             raise RuntimeError(
@@ -174,12 +175,12 @@ def get_youtube_client(
     # 5. If still no valid creds, try client_secrets flow
     if not creds or not creds.valid:
         if secrets_file.exists():
-            flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), YOUTUBE_UPLOAD_SCOPE)
+            flow = InstalledAppFlow.from_client_secrets_file(str(secrets_file), YOUTUBE_SCOPES)
             creds = flow.run_local_server(port=0)
             tok_file.write_text(creds.to_json(), encoding="utf-8")
         elif os.environ.get("YOUTUBE_CLIENT_SECRETS_JSON"):
             secrets_data = json.loads(os.environ["YOUTUBE_CLIENT_SECRETS_JSON"])
-            flow = InstalledAppFlow.from_client_config(secrets_data, YOUTUBE_UPLOAD_SCOPE)
+            flow = InstalledAppFlow.from_client_config(secrets_data, YOUTUBE_SCOPES)
             creds = flow.run_local_server(port=0)
             tok_file.write_text(creds.to_json(), encoding="utf-8")
         else:
