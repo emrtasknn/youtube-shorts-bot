@@ -766,5 +766,40 @@
     "created_at": "2026-09-27T12:13:20",
     "status": "used",
     "completed_at": "2026-09-27T12:23:30"
+  },
+  {
+    "event_id": "evt_3be72f10a5ac",
+    "canonical_title": "The Erfurt Latrine Disaster",
+    "aliases": [
+      "Erfurt Tuvalet Felaketi"
+    ],
+    "date": "1184",
+    "date_normalized": "1184",
+    "location": "Erfurt, Almanya",
+    "entities": [
+      "Kral VI. Henry",
+      "Alman soyluları"
+    ],
+    "event_summary": "Kral VI. Henry'nin topladığı mecliste, binanın zeminindeki tahtaların ağırlığı taşıyamayıp çökmesi ve alt katın foseptik çukuruna düşen düzinelerce soylunun boğulması.",
+    "core_facts": [
+      "Olay 26 Temmuz 1184 tarihinde Erfurt'taki St. Petersberg Kilisesi'nde gerçekleşti.",
+      "Kral VI. Henry, Thüringen Landgrafı III. Louis ile Mainz Başpiskoposu Konrad arasındaki anlaşmazlığı çözmek için bir meclis topladı.",
+      "Toplantı sırasında binanın zeminini oluşturan ahşap yapı, üzerindeki kalabalığın ağırlığı nedeniyle çöktü.",
+      "Birçok soylu ve şövalye, binanın altındaki foseptik çukuruna düşerek hayatını kaybetti.",
+      "Kral VI. Henry, şans eseri zeminin çökmediği taş bir bölmede (alcove) bulunduğu için kurtuldu."
+    ],
+    "claims": [
+      "Hayatını kaybedenlerin kesin sayısı kaynaklar arasında değişmekte olup genellikle 60 civarında kabul edilmektedir.",
+      "Olayın bir suikast girişimi mi yoksa tamamen yapısal bir zayıflık mı olduğu konusu dönemin kronikçileri tarafından bazen manevi bir cezalandırma olarak yorumlanmıştır."
+    ],
+    "sources": [
+      "Chronicon Montis Sereni",
+      "Peter von Dusburg, Chronicon terrae Prussiae",
+      "Annales Erphordenses"
+    ],
+    "first_video_id": "run_20260927_124330",
+    "created_at": "2026-09-27T12:33:23",
+    "status": "used",
+    "completed_at": "2026-09-27T12:43:30"
   }
 ]
