@@ -77,7 +77,7 @@ async function handleCallback(env, callback) {
   if (action === "script") {
     await answerCallback(env, callback.id, "Senaryo gönderiliyor...");
     const scenes = state.scenes || [];
-    const lines = [`📜 ${state.topic?.title || "Short"} — Senaryo`, ""];
+    const lines = [`📜 ${state.topic?.youtube_title || state.topic?.title || "Short"} — Senaryo`, ""];
     scenes.forEach((scene, i) => {
       lines.push(`🎬 ${i + 1}. Sahne`);
       lines.push(scene.narration || "");
@@ -103,7 +103,7 @@ async function handleCallback(env, callback) {
     await removeButtons(env, message.chat.id, message.message_id);
     await telegram(env, "sendMessage", {
       chat_id: message.chat.id,
-      text: `❌ ${state.topic?.title || "Video"} iptal edildi.`,
+      text: `❌ ${state.topic?.youtube_title || state.topic?.youtube_title || state.topic?.title || "Video"} iptal edildi.`,
     });
     return;
   }
@@ -116,7 +116,7 @@ async function handleCallback(env, callback) {
     await removeButtons(env, message.chat.id, message.message_id);
     await telegram(env, "sendMessage", {
       chat_id: message.chat.id,
-      text: `🚀 ${state.topic?.title || "Video"} YouTube'a yükleniyor...`,
+      text: `🚀 ${state.topic?.youtube_title || state.topic?.youtube_title || state.topic?.title || "Video"} YouTube'a yükleniyor...`,
     });
 
     try {
@@ -145,7 +145,7 @@ async function handleCallback(env, callback) {
     await removeButtons(env, message.chat.id, message.message_id);
     await telegram(env, "sendMessage", {
       chat_id: message.chat.id,
-      text: `🔄 ${state.topic?.title || "Video"} reddedildi. Yeni bir tarih olayı aranıyor...`,
+      text: `🔄 ${state.topic?.youtube_title || state.topic?.youtube_title || state.topic?.title || "Video"} reddedildi. Yeni bir tarih olayı aranıyor...`,
     });
 
     try {
@@ -250,7 +250,7 @@ export default {
         state.updated_at = new Date().toISOString();
         await saveState(env, result.run_id, state);
 
-        const title = state.topic?.title || "Video";
+        const title = state.topic?.youtube_title || state.topic?.youtube_title || state.topic?.title || "Video";
         if (state.status === "published") {
           await telegram(env, "sendMessage", {
             chat_id: env.TELEGRAM_CHAT_ID,
