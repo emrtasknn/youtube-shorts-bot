@@ -1685,8 +1685,10 @@ def build_telegram_markup(run_id: str) -> types.InlineKeyboardMarkup:
     github_run_id = os.getenv("GITHUB_RUN_ID", "").strip()
     github_run_number = os.getenv("GITHUB_RUN_NUMBER", "").strip()
 
+    # Include the unique generated run ID so a batch artifact can publish
+    # the exact video whose Telegram button was pressed.
     cloud_ref = (
-        f"{github_run_id}:{github_run_number}"
+        f"{github_run_id}:{github_run_number}:{run_id}"
         if github_run_id and github_run_number
         else run_id
     )
@@ -2265,8 +2267,9 @@ Do not invent facts.
 # -----------------------------
 # Main pipeline
 # -----------------------------
-def run(auto_publish: bool | None = None):
-    run_dir = OUTPUT_DIR / time.strftime("%Y%m%d_%H%M%S")
+def run(auto_publish: bool | None = None, run_id: str | None = None):
+    run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S_%f')[:-3]}"
+    run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Run migration if needed
@@ -2589,7 +2592,6 @@ def run(auto_publish: bool | None = None):
     log.info("Video QA passed: %s", video_qa)
 
     # ── Phase 4: Save Event Identity ──
-    run_id = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     event_record = event_memory.mark_event_as_used(candidate, research_dossier, video_id=run_id)
     # Carry the canonical event ID into Telegram control state.
     topic_compat["event_id"] = event_record.get("event_id", "")
@@ -2680,4 +2682,14 @@ if __name__ == "__main__":
     if "--bot" in sys.argv or "--listen" in sys.argv:
         start_bot_service()
     else:
-        run()
+        batch_count = max(1, min(int(os.getenv("BATCH_COUNT", "1")), 10))
+        if batch_count == 1:
+            run()
+        else:
+            batch_stamp = time.strftime("%Y%m%d_%H%M%S")
+            log.info("BATCH_MODE enabled: generating %d ready-to-review Shorts", batch_count)
+            for batch_index in range(1, batch_count + 1):
+                run_id = f"run_{batch_stamp}_{batch_index:02d}"
+                log.info("Starting batch video %d/%d: %s", batch_index, batch_count, run_id)
+                run(run_id=run_id)
+            log.info("Batch completed: %d Shorts sent to Telegram for review.", batch_count)
