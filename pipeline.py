@@ -2688,8 +2688,28 @@ if __name__ == "__main__":
         else:
             batch_stamp = time.strftime("%Y%m%d_%H%M%S")
             log.info("BATCH_MODE enabled: generating %d ready-to-review Shorts", batch_count)
+            successful = 0
+            failed = 0
             for batch_index in range(1, batch_count + 1):
                 run_id = f"run_{batch_stamp}_{batch_index:02d}"
                 log.info("Starting batch video %d/%d: %s", batch_index, batch_count, run_id)
-                run(run_id=run_id)
-            log.info("Batch completed: %d Shorts sent to Telegram for review.", batch_count)
+                try:
+                    run(run_id=run_id)
+                    successful += 1
+                except Exception:
+                    failed += 1
+                    log.exception("Batch video %d/%d failed; continuing with the next video.", batch_index, batch_count)
+
+            summary = (
+                f"🌅 Sabah batch tamamlandı. {successful}/{batch_count} hazır Short Telegram'a gönderildi."
+            )
+            if failed:
+                summary += f" {failed} üretim başarısız oldu."
+            try:
+                bot.send_message(TELEGRAM_CHAT_ID, summary)
+            except Exception:
+                log.exception("Could not send batch summary to Telegram")
+
+            if successful == 0:
+                raise RuntimeError("All batch video generations failed.")
+            log.info("Batch completed: %d/%d Shorts sent to Telegram for review.", successful, batch_count)
