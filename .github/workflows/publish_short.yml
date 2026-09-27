@@ -75,8 +75,14 @@ jobs:
           scenes = metadata.get("scenes", [])
           full_text = " ".join(str(s.get("narration", "")) for s in scenes).strip()
           event = metadata.get("event_record", {})
+          # The Telegram approval card uses the AI-generated Turkish title.
+          # Preserve that exact title through the artifact into the publish job;
+          # do not reconstruct the YouTube title from the canonical event title.
+          youtube_title = str(metadata.get("youtube_title", "")).strip()
+          canonical_title = event.get("canonical_title", "Tarihin Bilinmeyen Gizemi")
           topic = {
-              "title": event.get("canonical_title", "Tarihin Bilinmeyen Gizemi"),
+              "title": canonical_title,
+              "youtube_title": youtube_title,
               "hook_question": "",
           }
 
