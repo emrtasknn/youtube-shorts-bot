@@ -31,6 +31,7 @@ import youtube_uploader
 import content_memory
 import event_memory
 import gemini_config
+import content_engine
 
 
 # -----------------------------
@@ -189,7 +190,7 @@ def normalize_word(text: str) -> str:
     return re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]+", "", text, flags=re.UNICODE).lower()
 
 
-def validate_script(data: dict) -> list[dict]:
+def validate_script(data: dict, min_total_words: int | None = None, max_total_words: int | None = None, scene_min_words: int = 6, scene_max_words: int = 12) -> list[dict]:
     if not isinstance(data, dict):
         raise ValueError("Gemini output is not a JSON object")
 
@@ -279,8 +280,8 @@ def validate_script(data: dict) -> list[dict]:
             log.warning("Scene %s visual_intent.visual_role differs from scene visual_role; synchronizing to canonical scene value.", i)
             visual_intent["visual_role"] = visual_role
         word_count = len(narration.split())
-        if word_count < 6 or word_count > 12:
-            raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target 6-12)")
+        if word_count < scene_min_words or word_count > scene_max_words:
+            raise ValueError(f"Scene {i} has suspicious narration length: {word_count} words (target {scene_min_words}-{scene_max_words})")
         total_words += word_count
         event_specificity = scene.get("event_specificity", 0.0)
         information_density = scene.get("information_density", 0.0)
@@ -307,8 +308,10 @@ def validate_script(data: dict) -> list[dict]:
 
 
     # Keep Shorts comfortably short while allowing natural variation.
-    if total_words < MIN_TOTAL_WORDS or total_words > MAX_TOTAL_WORDS:
-        raise ValueError(f"Total narration length is outside expected range: {total_words} words")
+    min_words = MIN_TOTAL_WORDS if min_total_words is None else min_total_words
+    max_words = MAX_TOTAL_WORDS if max_total_words is None else max_total_words
+    if total_words < min_words or total_words > max_words:
+        raise ValueError(f"Total narration length is outside expected range: {total_words} words (target {min_words}-{max_words})")
 
     return cleaned
 
@@ -621,7 +624,7 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     }
 
 
-def generate_viral_script(candidate: dict, research_dossier: dict) -> list[dict]:
+def generate_viral_script(candidate: dict, research_dossier: dict, content_type: str = "TREND_HISTORY") -> list[dict]:
     """Generate a 7-scene structured script based on the verified research dossier.
 
     This ensures the script is based on facts and uncertainty is preserved where appropriate.
@@ -632,6 +635,19 @@ def generate_viral_script(candidate: dict, research_dossier: dict) -> list[dict]
     verified_facts_str = "\n".join(f"- {f}" for f in research_dossier.get("verified_facts", []))
     disputed_claims_str = "\n".join(f"- {f}" for f in research_dossier.get("disputed_claims", []))
     myths_str = "\n".join(f"- {f}" for f in research_dossier.get("possible_myths", []))
+
+    cfg = content_engine.config_for(content_type)
+    target_duration = cfg["target_duration"]
+    min_words = cfg["min_words"]
+    max_words = cfg["max_words"]
+    scene_min_words = 6
+    scene_max_words = 18 if content_type == "TODAY_IN_HISTORY" else 14
+    style_instruction = {
+        "TODAY_IN_HISTORY": "Bu özel seri 45-75 saniyelik mini tarih hikâyesidir. Olayı sadece özetleme; bağlam, mekanizma, şaşırtıcı ayrıntı ve sonuç arasında akıcı bir hikâye kur.",
+        "AYT_HISTORY": "Bu eğitim serisidir. Bilgiyi ezberlenebilir karşılaştırma, kronoloji veya kısa sınav ipucuyla anlat; gereksiz dramatizasyon yapma.",
+        "HISTORY_FACT": "Bu evergreen bilgi serisidir. Tek bir şaşırtıcı gerçeği neden-sonuç ilişkisiyle açıkla.",
+        "CUSTOM": "Bu deneysel custom içeriktir. Kullanıcı fikrinin özünü koru ve güçlü bir mini hikâyeye dönüştür.",
+    }.get(content_type, "Bu genel tarih Shorts içeriğidir.")
 
     prompt = f"""
 Sen YouTube Shorts için viral tarih belgeselleri üreten usta bir yönetmensin.
@@ -648,10 +664,11 @@ TARTIŞMALI İDDİALAR:
 EFSANELER / SPEKÜLASYONLAR:
 {myths_str}
 
-Bu olayı tam {SCENE_COUNT} sahnelik, yüksek tempolu bir Shorts senaryosu olarak yaz.
-Hedef seslendirme süresi yaklaşık {TARGET_DURATION} saniye; toplam 56-72 kelime.
-AMAÇ: 7 sahnenin toplamı kesinlikle 72 kelimeyi geçmesin. Her sahne 6-12 kelime olsun; mümkünse 8-10 kelime kullan.
-Öncelik kısa ve doğal Türkçe cümlelerdir. 30-38 saniyelik, hızlı ve yoğun bir Shorts üret.
+Bu olayı tam {SCENE_COUNT} sahnelik bir Shorts senaryosu olarak yaz.
+İçerik tipi: {content_type}
+Hedef seslendirme süresi yaklaşık {target_duration} saniye; toplam {min_words}-{max_words} kelime.
+AMAÇ: toplam narration {min_words}-{max_words} kelime aralığında kalmalı. Her sahne {scene_min_words}-{scene_max_words} kelime olsun.
+Öncelik doğal Türkçe ve bilgi yoğunluğudur. {style_instruction}
 
 Sahne Hikaye Şablonu:
 - 1. Sahne: COLD OPEN - 6-10 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
@@ -775,7 +792,7 @@ Kurallar:
                 except json.JSONDecodeError:
                     decoder = json.JSONDecoder()
                     data, _ = decoder.raw_decode(raw_json)
-                scenes = validate_script(data)
+                scenes = validate_script(data, min_total_words=min_words, max_total_words=max_words, scene_min_words=scene_min_words, scene_max_words=scene_max_words)
                 storyboard_qa = validate_visual_storyboard(scenes)
                 log.info("Visual storyboard QA: %s", storyboard_qa)
                 topic_compat = {"title": topic_title} # For QA
@@ -788,14 +805,14 @@ Kurallar:
                 current_total_match = re.search(r"(\d+) words", err_msg)
                 current_total = int(current_total_match.group(1)) if current_total_match else None
                 word_fix = (
-                    f"Mevcut denemede toplam {current_total} kelime vardı; bu kez toplamı 56-72 kelimeye çıkar."
-                    if current_total is not None and current_total < MIN_TOTAL_WORDS
-                    else "Toplam narration 56-72 kelime arasında olmalı."
+                    f"Mevcut denemede toplam {current_total} kelime vardı; bu kez toplamı {min_words}-{max_words} kelimeye getir."
+                    if current_total is not None and current_total < min_words
+                    else f"Toplam narration {min_words}-{max_words} kelime arasında olmalı."
                 )
                 current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\n"
                 current_prompt += (
                     f"KRİTİK DÜZELTME: {word_fix} "
-                    "Her sahne 7-10 kelime hedeflesin ve 6-12 sınırını korusun. "
+                    f"Her sahne {scene_min_words}-{scene_max_words} kelime sınırını korusun. "
                     "visual_fact ve visual_intent.visual_fact aynı anlamı taşımalı; "
                     "visual_role ve visual_intent.visual_role aynı olmalı. "
                     "visual_action, scene_context, shot_type ve composition alanlarını doldur; "
@@ -2267,7 +2284,7 @@ Do not invent facts.
 # -----------------------------
 # Main pipeline
 # -----------------------------
-def run(auto_publish: bool | None = None, run_id: str | None = None):
+def run(auto_publish: bool | None = None, run_id: str | None = None, content_type: str = "TREND_HISTORY", custom_prompt: str = "", exclude_titles: list[str] | None = None):
     run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -2277,13 +2294,32 @@ def run(auto_publish: bool | None = None, run_id: str | None = None):
         log.info("First run with V2 engine. Attempting migration...")
         event_memory.migrate_existing_memory()
 
-    log.info("1/8 Historical Event Discovery & Deduplication")
-    discovery_result = event_memory.run_discovery_pipeline()
+    log.info("1/8 Content Discovery | type=%s", content_type)
+    if content_type == "TREND_HISTORY":
+        discovery_result = event_memory.run_discovery_pipeline()
+    else:
+        candidate = content_engine.build_candidate(
+            content_type=content_type,
+            custom_prompt=custom_prompt,
+            date_str=content_engine.today_tr(),
+            exclude_titles=exclude_titles or [],
+        )
+        research_dossier = event_memory.research_historical_event(candidate)
+        reservation = event_memory.reserve_event(candidate, research_dossier)
+        candidate = dict(candidate)
+        candidate["_reserved_event_id"] = reservation.get("event_id", "")
+        discovery_result = (candidate, research_dossier)
+
     if not discovery_result:
         log.error("Pipeline aborting due to discovery failure.")
-        raise RuntimeError("Historical event discovery failed; no video was generated.")
+        raise RuntimeError(f"{content_type} discovery failed; no video was generated.")
 
     candidate, research_dossier = discovery_result
+    candidate["content_type"] = content_type
+    candidate["content_label"] = next(
+        (x["label"] for x in content_engine.CONTENT_PLAN if x["content_type"] == content_type),
+        content_type,
+    )
     # Topic dict compatibility for older functions (e.g., telegram / youtube uploader)
     canonical_title = candidate.get("canonical_title", "Tarihsel Gizem")
     topic_compat = {
@@ -2295,7 +2331,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None):
     }
 
     log.info("2/8 Generating script from verified research dossier")
-    scenes = generate_viral_script(candidate, research_dossier)
+    scenes = generate_viral_script(candidate, research_dossier, content_type=content_type)
     full_text = " ".join(scene["narration"] for scene in scenes)
 
     log.info("3/8 Generating AI YouTube title")
@@ -2329,7 +2365,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None):
         )
         voice_audio = AudioFileClip(str(voice_path))
         total_duration = voice_audio.duration
-        if 28.0 <= total_duration <= 40.0:
+        cfg = content_engine.config_for(content_type)
+        if float(cfg["min_duration"]) <= total_duration <= float(cfg["max_duration"]):
             if total_duration > 38.0:
                 log.warning("Duration %.2fs is above the V1.1 target window (28-38s).", total_duration)
             break
@@ -2339,8 +2376,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None):
             total_duration, duration_attempt,
         )
         if duration_attempt == 3:
-            raise RuntimeError(f"Could not produce a V1.1 Short in target duration range: {total_duration:.2f}s")
-        scenes = generate_viral_script(candidate, research_dossier)
+            raise RuntimeError(f"Could not produce {content_type} Short in target duration range: {total_duration:.2f}s")
+        scenes = generate_viral_script(candidate, research_dossier, content_type=content_type)
         full_text = " ".join(scene["narration"] for scene in scenes)
 
     scene_timings = calculate_scene_timings(scenes, words_data, total_duration)
@@ -2683,22 +2720,35 @@ if __name__ == "__main__":
         start_bot_service()
     else:
         batch_count = max(1, min(int(os.getenv("BATCH_COUNT", "1")), 10))
+        requested_type = os.getenv("CONTENT_TYPE", "TREND_HISTORY").strip().upper()
+        custom_prompt = os.getenv("CUSTOM_PROMPT", "").strip()
         if batch_count == 1:
-            run()
+            run(content_type=requested_type, custom_prompt=custom_prompt)
         else:
             batch_stamp = time.strftime("%Y%m%d_%H%M%S")
-            log.info("BATCH_MODE enabled: generating %d ready-to-review Shorts", batch_count)
+            plan = content_engine.daily_plan()[:batch_count]
+            log.info("BATCH_MODE enabled: generating %d ready-to-review Shorts with plan=%s", batch_count, plan)
             successful = 0
             failed = 0
-            for batch_index in range(1, batch_count + 1):
+            produced_titles = []
+            for batch_index, content_type in enumerate(plan, 1):
                 run_id = f"run_{batch_stamp}_{batch_index:02d}"
-                log.info("Starting batch video %d/%d: %s", batch_index, batch_count, run_id)
+                log.info("Starting batch video %d/%d | type=%s | %s", batch_index, batch_count, content_type, run_id)
                 try:
-                    run(run_id=run_id)
+                    run(
+                        run_id=run_id,
+                        content_type=content_type,
+                        custom_prompt=custom_prompt if content_type == "CUSTOM" else "",
+                        exclude_titles=produced_titles,
+                    )
                     successful += 1
                 except Exception:
                     failed += 1
-                    log.exception("Batch video %d/%d failed; continuing with the next video.", batch_index, batch_count)
+                    log.exception("Batch video %d/%d (%s) failed; continuing with the next video.", batch_index, batch_count, content_type)
+                finally:
+                    produced_titles.extend(
+                        [str(x.get("canonical_title", "")) for x in event_memory.load_event_memory()[-3:] if x.get("canonical_title")]
+                    )
 
             summary = (
                 f"🌅 Sabah batch tamamlandı. {successful}/{batch_count} hazır Short Telegram'a gönderildi."
