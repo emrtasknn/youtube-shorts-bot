@@ -82,6 +82,8 @@ YouTube states that uploads through `videos.insert` from unverified API projects
 
 ## 6. Playlist automation
 
+A final integration check also ensures the generated content type is preserved into the publish workflow, so AYT/Tarihte Bugün/Fact/Custom videos are not accidentally routed to the Trend History playlist.
+
 Content-type → playlist routing is implemented.
 
 Environment variables expected by the publish workflow:
