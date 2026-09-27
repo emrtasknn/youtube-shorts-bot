@@ -2218,6 +2218,14 @@ def generate_youtube_title(candidate: dict, research_dossier: dict, scenes: list
     hook = str(research_dossier.get("story_hook") or "").strip()
     full_text = " ".join(str(scene.get("narration", "")).strip() for scene in scenes)
 
+    content_type = str(candidate.get("content_type", "TREND_HISTORY"))
+    series_instruction = {
+        "TODAY_IN_HISTORY": "Başlık mümkünse 'TARİHTE BUGÜN:' ile başlasın; gün/yıl ve olayın merak uyandıran özünü taşısın.",
+        "AYT_HISTORY": "Başlık mümkünse 'AYT TARİH:' ile başlasın ve ezberlenecek konuyu netleştirsin.",
+        "HISTORY_FACT": "Başlık tek şaşırtıcı tarih gerçeğini öne çıkarsın.",
+        "CUSTOM": "Başlık custom fikrin özgün açısını öne çıkarsın.",
+    }.get(content_type, "Genel tarih Shorts başlığı üret.")
+
     prompt = f"""
 You are writing ONE Turkish YouTube Shorts title for a historical documentary.
 
@@ -2241,6 +2249,7 @@ STRICT OUTPUT RULES:
 - Avoid generic titles such as "Tarihin Bilinmeyen Gizemi".
 - Do not invent facts not present in the event/script.
 - Proper nouns may remain in their original spelling, but the sentence itself must be Turkish.
+- {series_instruction}
 """
 
     def call_title_model(instruction: str) -> str:
