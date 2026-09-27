@@ -124,6 +124,7 @@ async function handleCallback(env, callback) {
         source_run_id: String(state.github_run_id),
         source_run_number: String(state.github_run_number),
         approval_run_id: runId,
+        youtube_title: String(state.topic?.youtube_title || state.topic?.title || "Tarihin Bilinmeyen Gizemi").slice(0, 90),
       });
     } catch (err) {
       state.status = "publish_dispatch_failed";
