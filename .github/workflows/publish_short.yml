@@ -161,6 +161,7 @@ jobs:
               payload.update({
                   "youtube_url": data.get("url", ""),
                   "youtube_video_id": data.get("video_id", ""),
+                  "playlist": data.get("playlist", {}),
               })
           else:
               payload["error"] = "YouTube upload workflow failed before producing publish_result.json"
