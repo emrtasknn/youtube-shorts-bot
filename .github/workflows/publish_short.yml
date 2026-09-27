@@ -65,7 +65,7 @@ jobs:
         env:
           YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           YOUTUBE_CLIENT_SECRETS_JSON: ${{ secrets.YOUTUBE_CLIENT_SECRETS_JSON }}
-          YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
+          YOUTUBE_PRIVACY_STATUS: public
           VIDEO: ${{ steps.locate.outputs.video }}
           METADATA: ${{ steps.locate.outputs.metadata }}
           YOUTUBE_TITLE: ${{ inputs.youtube_title }}
