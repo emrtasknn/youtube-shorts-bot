@@ -15,6 +15,10 @@ on:
         description: "Telegram approval run ID"
         required: true
         type: string
+      youtube_title:
+        description: "AI-generated Turkish YouTube title from the approval card"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -64,6 +68,7 @@ jobs:
           YOUTUBE_PRIVACY_STATUS: ${{ secrets.YOUTUBE_PRIVACY_STATUS || 'public' }}
           VIDEO: ${{ steps.locate.outputs.video }}
           METADATA: ${{ steps.locate.outputs.metadata }}
+          YOUTUBE_TITLE: ${{ inputs.youtube_title }}
         run: |
           python - <<'PY'
           import json, os
@@ -78,7 +83,11 @@ jobs:
           # The Telegram approval card uses the AI-generated Turkish title.
           # Preserve that exact title through the artifact into the publish job;
           # do not reconstruct the YouTube title from the canonical event title.
-          youtube_title = str(metadata.get("youtube_title", "")).strip()
+          # The approval workflow passes the exact title shown in Telegram.
+          # This is the authoritative title for publishing.
+          youtube_title = str(os.environ.get("YOUTUBE_TITLE", "")).strip()
+          if not youtube_title:
+              youtube_title = str(metadata.get("youtube_title", "")).strip()
           canonical_title = event.get("canonical_title", "Tarihin Bilinmeyen Gizemi")
           topic = {
               "title": canonical_title,
