@@ -170,6 +170,60 @@ async function handleCallback(env, callback) {
   await answerCallback(env, callback.id, "Bilinmeyen işlem.");
 }
 
+async function handleMessage(env, message) {
+  if (!message || String(message.chat?.id) !== String(env.TELEGRAM_CHAT_ID)) return;
+  const text = String(message.text || "").trim();
+  if (!text.startsWith("/")) return;
+
+  const match = text.match(/^\/(custom|ayt|today|generate)(?:@\w+)?(?:\s+([\\s\\S]*))?$/i);
+  if (!match) return;
+
+  const command = match[1].toLowerCase();
+  const argument = String(match[2] || "").trim();
+  let contentType = "TREND_HISTORY";
+  let customPrompt = "";
+
+  if (command === "custom") {
+    contentType = "CUSTOM";
+    customPrompt = argument;
+    if (!customPrompt) {
+      await telegram(env, "sendMessage", {
+        chat_id: message.chat.id,
+        text: "🧪 Kullanım: /custom [üretmek istediğin tarih videosu fikri]",
+      });
+      return;
+    }
+  } else if (command === "ayt") {
+    contentType = "AYT_HISTORY";
+  } else if (command === "today") {
+    contentType = "TODAY_IN_HISTORY";
+  }
+
+  try {
+    await githubDispatch(env, "daily_short.yml", {
+      mode: command === "custom" ? "custom" : command,
+      batch_count: "1",
+      content_type: contentType,
+      custom_prompt: customPrompt,
+    });
+    const labels = {
+      TREND_HISTORY: "Trend History",
+      TODAY_IN_HISTORY: "Tarihte Bugün",
+      AYT_HISTORY: "AYT Tarih",
+      CUSTOM: "Custom",
+    };
+    await telegram(env, "sendMessage", {
+      chat_id: message.chat.id,
+      text: `🚀 ${labels[contentType] || contentType} üretimi başlatıldı. Tamamlandığında önizleme Telegram'a gelecek.`,
+    });
+  } catch (err) {
+    await telegram(env, "sendMessage", {
+      chat_id: message.chat.id,
+      text: `⚠️ Üretim başlatılamadı.\n${String(err).slice(0, 1000)}`,
+    });
+  }
+}
+
 export default {
   async fetch(request, env) {
     try {
@@ -234,6 +288,7 @@ export default {
         }
         const update = await request.json();
         if (update.callback_query) await handleCallback(env, update.callback_query);
+        if (update.message) await handleMessage(env, update.message);
         return json({ ok: true });
       }
 
