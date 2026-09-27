@@ -801,5 +801,40 @@
     "created_at": "2026-09-27T12:33:23",
     "status": "used",
     "completed_at": "2026-09-27T12:43:30"
+  },
+  {
+    "event_id": "evt_4b4de0be4935",
+    "canonical_title": "The Tanganyika Laughter Epidemic",
+    "aliases": [
+      "Tanganyika Gülme Salgını",
+      "1962 Gülme Hastalığı"
+    ],
+    "date": "1962",
+    "date_normalized": "1962",
+    "location": "Tanganyika (günümüz Tanzanya)",
+    "entities": [
+      "Kashasha Köyü Okulu",
+      "Yerel halk"
+    ],
+    "event_summary": "Bir kız okulunda başlayan kontrolsüz gülme krizleri, çevre köylere yayılarak aylarca süren ve 1000'den fazla kişiyi etkileyen bir kütlesel histeri olayına dönüştü. Gülme krizleri bazen saatlerce sürdü ve okulların geçici olarak kapanmasına yol açtı.",
+    "core_facts": [
+      "Olay 30 Ocak 1962 tarihinde Kashasha köyündeki bir kız okulunda başladı.",
+      "Kriz başlangıçta 3 öğrenciyle başladı ve kısa sürede sınıfın çoğuna yayıldı.",
+      "14 okul, kontrol edilemeyen gülme nöbetleri nedeniyle geçici olarak kapatılmak zorunda kaldı.",
+      "Olay toplamda 1000'den fazla bireyi etkileyerek bölgedeki günlük yaşamı felç etti.",
+      "Semptomlar gülme krizleri ile sınırlı olmayıp, bayılma, nefes darlığı ve döküntü gibi fiziksel belirtileri de içeriyordu."
+    ],
+    "claims": [
+      "Olayın temel nedeninin kitlesel psikojenik bir hastalık (kütlesel histeri) mi yoksa bölgedeki çevresel bir zehirlenme mi olduğu konusu tartışmalıdır.",
+      "Gülme nöbetlerinin süresi; bazı raporlar birkaç saati işaret ederken, bazıları nöbetlerin 16 güne kadar aralıklarla sürdüğünü iddia eder."
+    ],
+    "sources": [
+      "Provine, R. R. (2000). Laughter: A Scientific Investigation",
+      "Rankin, A. M., & Philip, P. J. (1963). An epidemic of laughing in the Bukoba district of Tanganyika"
+    ],
+    "first_video_id": "run_20260927_170823",
+    "created_at": "2026-09-27T16:57:17",
+    "status": "used",
+    "completed_at": "2026-09-27T17:08:23"
   }
 ]
