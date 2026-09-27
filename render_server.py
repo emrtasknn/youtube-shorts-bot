@@ -74,7 +74,7 @@ def github_dispatch(workflow_file: str, inputs: dict) -> None:
         )
 
 
-def download_run_artifact(source_run_id: str, source_run_number: str) -> tuple[Path, Path]:
+def download_run_artifact(source_run_id: str, source_run_number: str, artifact_ref: str = "") -> tuple[Path, Path]:
     artifact_name = f"shorts-run-{source_run_number}"
     response = requests.get(
         f"https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{source_run_id}/artifacts",
@@ -117,13 +117,33 @@ def download_run_artifact(source_run_id: str, source_run_number: str) -> tuple[P
     if not metadata_candidates:
         raise FileNotFoundError("metadata.json was not found in GitHub artifact")
 
-    metadata_path = metadata_candidates[0]
-    video_path = video_candidates[0]
+    # Batch generation stores up to 10 Shorts in one artifact. The Telegram
+    # callback carries the unique run_id so we publish exactly the video that
+    # belongs to the button the user pressed, not the first MP4 found.
+    if artifact_ref:
+        safe_ref = Path(artifact_ref)
+        if safe_ref.is_absolute() or ".." in safe_ref.parts:
+            raise ValueError("Invalid artifact video reference")
+        requested_video = target_dir / safe_ref / "final_short.mp4"
+        if not requested_video.is_file():
+            raise FileNotFoundError(
+                f"Generated video '{artifact_ref}/final_short.mp4' was not found in artifact"
+            )
+        video_path = requested_video
+        metadata_path = requested_video.parent / "metadata.json"
+        if not metadata_path.is_file():
+            raise FileNotFoundError(
+                f"Metadata for generated video '{artifact_ref}' was not found in artifact"
+            )
+    else:
+        metadata_path = metadata_candidates[0]
+        video_path = video_candidates[0]
 
     log.info(
-        "Downloaded publication artifact: video=%s metadata=%s",
+        "Downloaded publication artifact: video=%s metadata=%s artifact_ref=%s",
         video_path,
         metadata_path,
+        artifact_ref or "legacy-first-video",
     )
     return video_path, metadata_path
 
@@ -161,10 +181,10 @@ def remove_buttons(chat_id: str, message_id: int) -> None:
     )
 
 
-def process_publish(source_run_id: str, source_run_number: str, chat_id: str) -> None:
+def process_publish(source_run_id: str, source_run_number: str, chat_id: str, artifact_ref: str = "") -> None:
     try:
         video_path, metadata_path = download_run_artifact(
-            source_run_id, source_run_number
+            source_run_id, source_run_number, artifact_ref=artifact_ref
         )
 
         # Reuse the topic/script metadata produced by pipeline.py so the
@@ -253,6 +273,7 @@ def process_callback(update: dict) -> None:
     if action == "publish" and len(parts) >= 3:
         source_run_id = parts[1]
         source_run_number = parts[2]
+        artifact_ref = parts[3] if len(parts) >= 4 else ""
         answer_callback(callback_id, "Yayınlama başlatılıyor...")
         try:
             remove_buttons(chat_id, int(message.get("message_id")))
@@ -265,7 +286,7 @@ def process_callback(update: dict) -> None:
         )
         threading.Thread(
             target=process_publish,
-            args=(source_run_id, source_run_number, chat_id),
+            args=(source_run_id, source_run_number, chat_id, artifact_ref),
             daemon=True,
         ).start()
         return
