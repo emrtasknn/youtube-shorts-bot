@@ -99,6 +99,11 @@ jobs:
           VIDEO: ${{ steps.locate.outputs.video }}
           METADATA: ${{ steps.locate.outputs.metadata }}
           YOUTUBE_TITLE: ${{ inputs.youtube_title }}
+          YOUTUBE_PLAYLIST_TREND_HISTORY: ${{ secrets.YOUTUBE_PLAYLIST_TREND_HISTORY }}
+          YOUTUBE_PLAYLIST_TODAY_IN_HISTORY: ${{ secrets.YOUTUBE_PLAYLIST_TODAY_IN_HISTORY }}
+          YOUTUBE_PLAYLIST_AYT_HISTORY: ${{ secrets.YOUTUBE_PLAYLIST_AYT_HISTORY }}
+          YOUTUBE_PLAYLIST_HISTORY_FACT: ${{ secrets.YOUTUBE_PLAYLIST_HISTORY_FACT }}
+          YOUTUBE_PLAYLIST_CUSTOM: ${{ secrets.YOUTUBE_PLAYLIST_CUSTOM }}
         run: |
           python - <<'PY'
           import json, os
