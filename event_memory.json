@@ -870,5 +870,40 @@
     "created_at": "2026-09-27T17:26:38",
     "status": "used",
     "completed_at": "2026-09-27T17:35:51"
+  },
+  {
+    "event_id": "evt_0f02b444c1e5",
+    "canonical_title": "The Battle of Karánsebes",
+    "aliases": [
+      "Karánsebes Savaşı",
+      "Avusturya ordusunun kendi kendini vurması"
+    ],
+    "date": "1788",
+    "date_normalized": "1788",
+    "location": "Karansebes, Romania",
+    "entities": [
+      "Austrian Army"
+    ],
+    "event_summary": "During the Austro-Turkish War, a confusion between army factions led to a chaotic internal skirmish where the Austrian army fought itself before the Ottomans even arrived.",
+    "core_facts": [
+      "Olay, 1788 Avusturya-Osmanlı Savaşı sırasında gerçekleşmiştir.",
+      "Avusturya ordusu, Karansebes yakınlarında konuşlanmıştır.",
+      "Ordunun kendi içindeki farklı etnik gruplar (Almanlar, Macarlar, İtalyanlar) arasında dil bariyeri nedeniyle iletişim kopukluğu yaşanmıştır.",
+      "Ordu birimleri arasında bir panik ve ateş açma vakası yaşandığı askeri raporlarla sabittir.",
+      "Avusturya ordusu bu olay sonrasında geri çekilmek zorunda kalmıştır."
+    ],
+    "claims": [
+      "Çatışmanın kesin nedeninin alkol (schnapps) tartışması olup olmadığı konusunda birincil kaynaklar sınırlıdır.",
+      "Kayıpların sayısı; bazı kaynaklar binlerce ölü ve yaralıdan bahsederken, bazıları bunun abartılı bir sivil tarih anlatısı olduğunu öne sürer."
+    ],
+    "sources": [
+      "A.J. Gross-Hoffinger, 'Geschichte Josephs des Zweiten' (1847)",
+      "Österreichische Militärische Zeitschrift (1831)",
+      "Christopher Duffy, 'The Military Experience in the Age of Reason'"
+    ],
+    "first_video_id": "run_20260927_180704",
+    "created_at": "2026-09-27T17:53:22",
+    "status": "used",
+    "completed_at": "2026-09-27T18:07:04"
   }
 ]
