@@ -306,6 +306,7 @@ def process_callback(update: dict) -> None:
                     "mode": "regenerate",
                     "source_run_id": source_run_id,
                     "source_event_id": "",
+                    "batch_count": "1",
                 },
             )
             notify(chat_id, "🔄 Yeni video üretimi başlatıldı.")
