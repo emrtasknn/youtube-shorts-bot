@@ -302,6 +302,7 @@ export default {
         state.status = result.status || "published";
         state.youtube_url = result.youtube_url || "";
         state.youtube_video_id = result.youtube_video_id || "";
+        state.playlist = result.playlist || {};
         state.error = result.error || "";
         state.updated_at = new Date().toISOString();
         await saveState(env, result.run_id, state);
@@ -310,7 +311,7 @@ export default {
         if (state.status === "published") {
           await telegram(env, "sendMessage", {
             chat_id: env.TELEGRAM_CHAT_ID,
-            text: `🎉 ${title} başarıyla YouTube Shorts'a yüklendi.\\n\\n🔗 ${state.youtube_url}`,
+            text: `🎉 ${title} başarıyla YouTube Shorts'a yüklendi.\\n\\n🔗 ${state.youtube_url}${state.playlist?.status === "added" ? "\\n📚 Playlist'e eklendi." : state.playlist?.status === "failed" ? "\\n⚠️ Playlist'e eklenemedi; video yayında." : ""}`,
           });
         } else {
           await telegram(env, "sendMessage", {
