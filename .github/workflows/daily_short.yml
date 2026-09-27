@@ -23,6 +23,16 @@ on:
         required: false
         default: "10"
         type: string
+      content_type:
+        description: "Single content type when batch_count=1"
+        required: false
+        default: "TREND_HISTORY"
+        type: string
+      custom_prompt:
+        description: "Custom content idea when content_type=CUSTOM"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: '0 10 * * *'
       timezone: 'Europe/Istanbul'
@@ -80,6 +90,8 @@ jobs:
           SOURCE_RUN_ID: ${{ inputs.source_run_id || '' }}
           SOURCE_EVENT_ID: ${{ inputs.source_event_id || '' }}
           BATCH_COUNT: ${{ inputs.batch_count || '10' }}
+          CONTENT_TYPE: ${{ inputs.content_type || 'TREND_HISTORY' }}
+          CUSTOM_PROMPT: ${{ inputs.custom_prompt || '' }}
         run: python pipeline.py
 
       - name: Commit state changes
