@@ -7,7 +7,10 @@ import webbrowser
 from pathlib import Path
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube",
+]
 CLIENT_SECRETS_FILE = Path("client_secrets.json")
 TOKEN_FILE = Path("token.json")
 
