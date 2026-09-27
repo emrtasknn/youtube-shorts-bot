@@ -182,10 +182,20 @@ def process_publish(source_run_id: str, source_run_number: str, chat_id: str) ->
         default_title = os.getenv(
             "YOUTUBE_DEFAULT_TITLE", "Tarihin Bilinmeyen Gizemi"
         )
+        # The Render approval path publishes directly (without publish_short.yml),
+        # so it must carry the exact AI-generated YouTube title from metadata.
+        # Never reconstruct the title from the English canonical event name.
+        youtube_title = str(metadata.get("youtube_title") or "").strip()
+        if not youtube_title:
+            raise RuntimeError(
+                "Generated YouTube title is missing from metadata.json; refusing to publish the canonical event title."
+            )
         topic = {
             "title": event_record.get("canonical_title") or default_title,
+            "youtube_title": youtube_title,
             "hook_question": "",
         }
+        log.info("Publishing approved YouTube title: %s", youtube_title)
 
         # youtube_uploader supports direct OAuth refresh-token credentials
         # through Render environment variables.
