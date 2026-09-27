@@ -128,6 +128,8 @@ jobs:
               "title": canonical_title,
               "youtube_title": youtube_title,
               "hook_question": "",
+              "content_type": str(metadata.get("content_type", "TREND_HISTORY")),
+              "content_label": str(metadata.get("content_label", "")),
           }
 
           result = youtube_uploader.upload_shorts_video(
