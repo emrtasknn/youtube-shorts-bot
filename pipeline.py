@@ -1747,9 +1747,12 @@ def send_to_telegram(
         or "Yeni Shorts"
     ) if topic else "Yeni Shorts"
     hook_question = topic.get("hook_question", "") if topic else ""
+    content_label = topic.get("content_label", "") if topic else ""
     hook_line = f"❓ _{hook_question}_\n\n" if hook_question else ""
+    type_line = f"{content_label}\n" if content_label else ""
 
     caption = (
+        f"{type_line}"
         f"🔥 *{topic_title}*\n\n"
         f"{hook_line}"
         f"⏱ Süre: {total_duration:.1f}s | {SCENE_COUNT} Sahne\n"
@@ -1763,6 +1766,8 @@ def send_to_telegram(
         "video_path": str(video_path),
         "topic": topic,
         "event_id": (topic or {}).get("event_id", ""),
+        "content_type": (topic or {}).get("content_type", "TREND_HISTORY"),
+        "content_label": (topic or {}).get("content_label", ""),
         "github_run_id": os.getenv("GITHUB_RUN_ID", ""),
         "github_run_number": os.getenv("GITHUB_RUN_NUMBER", ""),
         "total_duration": total_duration,
@@ -2027,7 +2032,7 @@ def start_bot_service():
 # -----------------------------
 # Video Quality QA
 # -----------------------------
-def validate_video_quality(video_path: Path) -> dict:
+def validate_video_quality(video_path: Path, min_duration: float | None = None, max_duration: float | None = None) -> dict:
     """Validate that the generated video meets quality and Shorts standards.
 
     Checks:
@@ -2051,15 +2056,17 @@ def validate_video_quality(video_path: Path) -> dict:
             raise ValueError(f"Invalid video dimensions: {w}x{h}, expected {VIDEO_WIDTH}x{VIDEO_HEIGHT}")
 
         duration = clip.duration
-        if duration < MIN_DURATION or duration > MAX_DURATION:
+        min_allowed = MIN_DURATION if min_duration is None else float(min_duration)
+        max_allowed = MAX_DURATION if max_duration is None else float(max_duration)
+        if duration < min_allowed or duration > max_allowed:
             if not os.getenv("PYTEST_CURRENT_TEST") and 10.0 <= duration <= 58.0:
                 log.warning(
-                    "Video duration (%.2fs) is outside configured range (%ss - %ss), but valid for YouTube Shorts platform.",
-                    duration, MIN_DURATION, MAX_DURATION,
+                    "Video duration (%.2fs) is outside configured range (%.1fs - %.1fs), but valid for YouTube Shorts platform.",
+                    duration, min_allowed, max_allowed,
                 )
             else:
                 raise ValueError(
-                    f"Video duration ({duration:.2f}s) is outside expected range ({MIN_DURATION}s - {MAX_DURATION}s)"
+                    f"Video duration ({duration:.2f}s) is outside expected range ({min_allowed:.1f}s - {max_allowed:.1f}s)"
                 )
 
         if clip.audio is None:
@@ -2328,6 +2335,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         "hook_question": research_dossier.get("story_hook", ""),
         "viral_score": 9,
         "visual_appeal": 9,
+        "content_type": content_type,
+        "content_label": candidate.get("content_label", content_type),
     }
 
     log.info("2/8 Generating script from verified research dossier")
@@ -2619,7 +2628,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     )
 
     log.info("Performing final video quality checks")
-    video_qa = validate_video_quality(output_path)
+    duration_cfg = content_engine.config_for(content_type)
+    video_qa = validate_video_quality(
+        output_path,
+        min_duration=duration_cfg["min_duration"],
+        max_duration=duration_cfg["max_duration"],
+    )
     if audio_mix_mode not in {"voice_plus_background_ducked", "voice_plus_background_ducked_plus_sfx"}:
         raise RuntimeError("Final audio QA failed: background music was not mixed into the video.")
     video_qa["audio_mix_mode"] = audio_mix_mode
@@ -2650,6 +2664,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "event_record": event_record,
         "youtube_title": youtube_title,
+        "content_type": content_type,
+        "content_label": candidate.get("content_label", content_type),
         "canonical_event_title": canonical_title,
         "duration_seconds": round(total_duration, 3),
         "scene_count": len(scenes),
