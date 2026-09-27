@@ -2268,7 +2268,7 @@ Do not invent facts.
 # Main pipeline
 # -----------------------------
 def run(auto_publish: bool | None = None, run_id: str | None = None):
-    run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S_%f')[:-3]}"
+    run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
