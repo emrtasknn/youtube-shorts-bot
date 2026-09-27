@@ -836,5 +836,39 @@
     "created_at": "2026-09-27T16:57:17",
     "status": "used",
     "completed_at": "2026-09-27T17:08:23"
+  },
+  {
+    "event_id": "evt_e5fca3ee5ce9",
+    "canonical_title": "The Great Stink",
+    "aliases": [
+      "Büyük Koku"
+    ],
+    "date": "1858",
+    "date_normalized": "1858",
+    "location": "London, UK",
+    "entities": [
+      "Joseph Bazalgette",
+      "London Parliament"
+    ],
+    "event_summary": "A heatwave caused the smell of untreated human waste in the River Thames to become so unbearable that the British government was forced to evacuate Parliament.",
+    "core_facts": [
+      "1858 yazında Londra'da yaşanan aşırı sıcak hava dalgası, Thames Nehri'ndeki ham kanalizasyon atıklarının fermantasyonunu hızlandırdı.",
+      "Koku o kadar şiddetliydi ki, Westminster Sarayı'ndaki parlamento oturumları durma noktasına geldi ve oturumların başka yere taşınması tartışıldı.",
+      "Parlamento pencerelerine kokuyla mücadele etmek amacıyla klorürlü kirece batırılmış bezler asıldı.",
+      "Olay, mühendis Joseph Bazalgette'in modern Londra kanalizasyon sistemini tasarlaması ve inşa etmesi için gerekli siyasi desteği sağladı.",
+      "Kanalizasyon projesi, Londra'nın o dönemdeki kolera salgınlarını durdurmada kritik bir rol oynadı."
+    ],
+    "claims": [
+      "Parlamentonun tamamen tahliye edilip edilmediği; bazı kaynaklar oturumların sadece zorlukla sürdürüldüğünü, tam tahliyenin gerçekleşmediğini belirtir.",
+      "Koku sebebiyle nehir trafiğinin tamamen durup durmadığı; ticari faaliyetlerin azaldığı kesindir ancak durma seviyesi tartışmalıdır."
+    ],
+    "sources": [
+      "Stephen Halliday, 'The Great Stink of London: Sir Joseph Bazalgette and the Cleansing of the Victorian Metropolis'",
+      "The Lancet dergisinin 1858 yılındaki çevre sağlığı raporları ve editoryal yazıları"
+    ],
+    "first_video_id": "run_20260927_173551",
+    "created_at": "2026-09-27T17:26:38",
+    "status": "used",
+    "completed_at": "2026-09-27T17:35:51"
   }
 ]
