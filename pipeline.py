@@ -36,6 +36,8 @@ import content_engine
 import scene_motion
 import prompt_engine
 import visual_qc
+import visual_telemetry
+import scene_transitions
 
 
 # -----------------------------
@@ -2637,13 +2639,48 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             i, enhancement_info.get("enabled"), enhancement_info.get("profile", "none"),
         )
 
-        # V2: scene-aware motion selection (falls back to round-robin when disabled).
+        # V2 Phase 8: scene-aware motion selection
         motion_type = scene_motion.select_motion(scene, i)
         log.info(
             "Scene %d motion: type=%s scene_type=%s",
             i, motion_type, scene_motion.derive_scene_type(scene),
         )
+
+        # V2 Phase 15: scene-aware transition selection
+        prev_scene = scenes[i - 2] if i > 1 else {}
+        transition_info = scene_transitions.select_scene_transition(
+            scene_a=prev_scene,
+            scene_b=scene,
+            idx_b=i - 1,
+            total_scenes=len(scenes),
+        )
+        scene["transition"] = transition_info
+
+        # V2 Phase 19: scene visual telemetry
+        telemetry_rec = visual_telemetry.create_scene_telemetry(
+            scene=scene,
+            scene_index=i,
+            start_time=start,
+            end_time=end,
+            motion_type=motion_type,
+        )
+        scene["telemetry"] = telemetry_rec
+
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
+
+    # V2 Phase 19: Save full video visual telemetry report
+    telemetry_report = visual_telemetry.build_video_telemetry_report(
+        scenes=scenes,
+        candidate=candidate,
+        diversity_report=diversity_report if "diversity_report" in locals() else None,
+        run_dir=run_dir,
+    )
+    log.info(
+        "Visual engine telemetry report generated (%d scenes, QC pass rate: %.0f%%, diversity: %.2f)",
+        telemetry_report["total_scenes"],
+        telemetry_report["qc_summary"]["qc_pass_rate"] * 100,
+        telemetry_report.get("diversity_score", 1.0),
+    )
 
     log.info("7/8 Compositing video and subtitles")
     base_video = CompositeVideoClip(
