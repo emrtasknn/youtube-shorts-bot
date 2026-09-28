@@ -34,6 +34,7 @@ import event_memory
 import gemini_config
 import content_engine
 import scene_motion
+import prompt_engine
 
 
 # -----------------------------
@@ -2491,20 +2492,24 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
 
     log.info("6/8 Resolving visual sources and generating images")
     scene_clips = []
-    
+
+    # V2: construct event_context once here (values are constant across scenes).
+    # Includes date_normalized for more precise era derivation in prompt_engine.
+    event_context = {
+        "title": topic_compat["title"],
+        "aliases": candidate.get("aliases", []),
+        "location": candidate.get("location", ""),
+        "entities": candidate.get("entities", []),
+        "date": candidate.get("date", ""),
+        "date_normalized": candidate.get("date_normalized", ""),
+    }
+
     # Pre-resolve visuals
     visual_sources = []
     used_visual_urls: list[str] = []
     for i, scene in enumerate(scenes, 1):
         visual_intent = scene.get("visual_intent", {})
         terms = list(visual_intent.get("search_queries", []))
-        event_context = {
-            "title": topic_compat["title"],
-            "aliases": candidate.get("aliases", []),
-            "location": candidate.get("location", ""),
-            "entities": candidate.get("entities", []),
-            "date": candidate.get("date", ""),
-        }
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
@@ -2586,24 +2591,11 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         }
         source_type_for_enhancement = v_source.get("source_type", "ai_reconstruction") if image_downloaded else "ai_reconstruction"
         if not image_downloaded:
-            intent = scene.get("visual_intent", {})
-            ai_prompt = (
-                f"{scene['image_prompt']} "
-                f"Visual fact to depict: {scene.get('visual_fact', '')}. "
-                f"Visual action: {intent.get('visual_action', '')}. "
-                f"Scene context: {intent.get('scene_context', '')}. "
-                f"Shot type: {intent.get('shot_type', '')}. "
-                f"Composition: {intent.get('composition', '')}. "
-                f"Visual entities: {', '.join(intent.get('visual_entities', []))}. "
-                f"Visual role: {scene.get('visual_role', '')}. "
-                f"Primary subject: {intent.get('primary_subject', '')}. "
-                f"Must visibly include: {', '.join(intent.get('must_show', []))}. "
-                f"Avoid: {', '.join(intent.get('avoid', []))}. "
-                f"Historical event context: {topic_compat['title']}. "
-                "Depict the historical ACTION and relationship first, not an isolated object mentioned in narration. "
-                "The frame must communicate who/what is doing what, where and in what historical context. "
-                "Do not substitute a generic landscape, generic portrait, keyword collage, isolated prop, or stock-photo composition. "
-                "Respect the requested shot type and composition. No modern objects, no text, no watermark, documentary historical reconstruction."
+            # V2: structured, historically-enriched prompt via prompt_engine.
+            ai_prompt = prompt_engine.build_ai_prompt(
+                scene=scene,
+                topic_title=topic_compat["title"],
+                event_context=event_context,
             )
             download_ai_image(ai_prompt, image_path)
 
