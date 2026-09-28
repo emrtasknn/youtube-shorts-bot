@@ -1201,9 +1201,12 @@ def search_wikimedia_image(
                 + 0.10 * score
                 - (0.10 * text_risk if role not in {"document", "context_map"} else 0.0)
             ) if event_context else max(score, intent_score)
-            ranked.append((rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score))
+            ranked.append((
+                rank_score, item, intent_meta, specificity, specificity_meta,
+                density, density_meta, score, text_risk, text_risk_terms
+            ))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score in ranked[:5]:
+        for rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score, text_risk, text_risk_terms in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1342,10 +1345,18 @@ def search_openverse_image(
                     - (0.10 * text_risk if role not in {"document", "context_map"} else 0.0)
                 ) if event_context else score
                 if best is None or rank_score > best[0]:
-                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score)
+                    best = (
+                        rank_score, item, query, intent_meta, score, specificity,
+                        specificity_meta, density, density_meta, intent_score,
+                        text_risk, text_risk_terms
+                    )
 
         if best:
-            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score = best
+            (
+                rank_score, item, query, intent_meta, score, specificity,
+                specificity_meta, density, density_meta, intent_score,
+                text_risk, text_risk_terms
+            ) = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
