@@ -1086,5 +1086,40 @@
     "created_at": "2026-09-28T12:45:12",
     "status": "used",
     "completed_at": "2026-09-28T12:54:12"
+  },
+  {
+    "event_id": "evt_7647263b88a3",
+    "canonical_title": "The Sweating Sickness",
+    "aliases": [
+      "İngiliz Terleme Hastalığı",
+      "Sudor Anglicus"
+    ],
+    "date": "1485",
+    "date_normalized": "1485",
+    "location": "İngiltere",
+    "entities": [
+      "Tudor Hanedanı",
+      "İngiliz halkı"
+    ],
+    "event_summary": "1485 yılında aniden ortaya çıkan ve birkaç saat içinde sağlıklı insanları öldüren gizemli bir salgın. Hastalık, aşırı terleme ve titreme nöbetleri ile karakterize olup, hiçbir iz bırakmadan 16. yüzyılın ortalarında ortadan kaybolmuştur.",
+    "core_facts": [
+      "Salgın ilk olarak 1485 yılında, Bosworth Muharebesi sonrası Henry Tudor'un ordusuyla birlikte İngiltere'de belirdi.",
+      "Hastalık, aniden başlayan titreme, ateş ve aşırı terleme ile karakterize olup genellikle 24 saat içinde ölümle sonuçlanıyordu.",
+      "Hastalık 1551 yılında, o dönemdeki son büyük salgının ardından İngiltere'den aniden ve tamamen kaybolmuştur.",
+      "Salgın, Tudor dönemi İngiltere'sinde sosyal ve ekonomik yapıyı derinden etkilemiş, birçok soyluyu da tehdit etmiştir.",
+      "Hastalık döneminde 'sudor anglicus' (İngiliz Teri) olarak adlandırılmıştır."
+    ],
+    "claims": [
+      "Hastalığın etken maddesinin ne olduğu (Hantavirüs, influenza veya anthrax olduğu konusunda bilimsel fikir birliği yoktur).",
+      "Hastalığın neden sadece İngiltere ile sınırlı kaldığı ve Avrupa'nın geri kalanını neden etkilemediği hala tartışmalıdır."
+    ],
+    "sources": [
+      "John Caius, 'A Boke or Counseill Against the Disease Commonly Called the Sweate or Sweatyng Sicknesse' (1552)",
+      "Paul Slack, 'The Impact of Plague in Tudor and Stuart England'"
+    ],
+    "first_video_id": "run_20260928_153707",
+    "created_at": "2026-09-28T15:38:07",
+    "status": "used",
+    "completed_at": "2026-09-28T15:49:34"
   }
 ]
