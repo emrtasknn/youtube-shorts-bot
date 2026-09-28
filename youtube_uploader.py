@@ -55,7 +55,14 @@ def build_shorts_metadata(
         desc_lines.append(f"❓ {hook_question}\n")
 
     if full_text:
-        desc_lines.append(f"{full_text[:400]}...\n")
+        # Keep the complete narration in the YouTube description. The previous
+        # 400-character slice was cutting every description mid-sentence.
+        # YouTube allows up to 5,000 characters; reserve a small margin so
+        # future metadata additions cannot accidentally exceed the limit.
+        complete_text = str(full_text).strip()
+        if len(complete_text) > 4800:
+            complete_text = complete_text[:4797].rstrip() + "..."
+        desc_lines.append(f"{complete_text}\n")
 
     desc_lines.extend([
         "🎬 Her gün yeni bir gizemli tarih hikayesi!",
