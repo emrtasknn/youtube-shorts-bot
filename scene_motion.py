@@ -92,7 +92,9 @@ def derive_scene_type(scene: dict) -> str:
             return "archival"
         return "artifact"
 
-    if visual_role == "reconstruction":
+    if visual_role in {"reconstruction", "event_reconstruction"}:
+        if "action" in visual_type or "battle" in visual_type or "event" in visual_type:
+            return "action"
         if "landscape" in visual_type or "aerial" in visual_type or "wide" in visual_type:
             return "landscape"
         if (
