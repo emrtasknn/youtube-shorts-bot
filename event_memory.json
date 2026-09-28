@@ -1052,5 +1052,39 @@
     "created_at": "2026-09-28T11:38:47",
     "status": "used",
     "completed_at": "2026-09-28T11:48:24"
+  },
+  {
+    "event_id": "evt_bbc505380840",
+    "canonical_title": "The Lead Masks Case",
+    "aliases": [
+      "Kurşun Maskeler Vakası"
+    ],
+    "date": "1966",
+    "date_normalized": "1966",
+    "location": "Niterói, Brazil",
+    "entities": [
+      "Manuel Pereira da Cruz",
+      "Miguel José Viana"
+    ],
+    "event_summary": "Two electronic technicians were found dead on a hill wearing formal suits and homemade lead masks, with a notebook containing cryptic instructions.",
+    "core_facts": [
+      "20 Ağustos 1966 tarihinde Niterói, Brezilya'daki Vintém Tepesi'nde iki erkek cesedi bulundu.",
+      "Kurbanların Manuel Pereira da Cruz ve Miguel José Viana olduğu kimlik tespitiyle kesinleşti.",
+      "Kurbanların yüzlerinde kurşundan yapılmış el yapımı göz maskeleri bulunuyordu.",
+      "Olay yerinde üzerinde 'kapsülleri al', 'belirlenen saatte maskeyi tak', 'sinyali bekle' gibi notlar yazılı bir defter ele geçirildi.",
+      "Otopside kurbanların vücutlarında herhangi bir fiziksel şiddet, zehirlenme veya dış travma izine rastlanmadı."
+    ],
+    "claims": [
+      "Kurbanların ölüm nedeninin kalp yetmezliği mi yoksa tanımlanamayan bir radyasyon etkisi mi olduğu tartışmalıdır.",
+      "Olayın bir tarikat ritüeli mi yoksa başarısız bir bilimsel deney mi olduğu netlik kazanmamıştır."
+    ],
+    "sources": [
+      "Niterói Police Archive Records (1966)",
+      "Brazilian National Library Newspaper Archives (Jornal do Brasil - 1966 coverage)"
+    ],
+    "first_video_id": "run_20260928_124447",
+    "created_at": "2026-09-28T12:45:12",
+    "status": "used",
+    "completed_at": "2026-09-28T12:54:12"
   }
 ]
