@@ -1441,7 +1441,7 @@ def resolve_visual_source(
             "source_type": "ai_reconstruction",
             "note": "Final scene cannot use atmosphere-only visual resolution.",
             "search_queries": [],
-            "relevance_threshold": min_relevance if "min_relevance" in locals() else 0.65,
+            "relevance_threshold": 0.65,
             "event_specificity": 0.0,
             "information_density": 0.0,
             "visual_fact": intent.get("visual_fact", ""),
