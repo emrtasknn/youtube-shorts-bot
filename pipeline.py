@@ -659,6 +659,7 @@ def generate_viral_script(candidate: dict, research_dossier: dict, content_type:
     # words without relying on Gemini to hit the total-word target by itself.
     scene_min_words = 15 if content_type == "TODAY_IN_HISTORY" else 6
     scene_max_words = 20 if content_type == "TODAY_IN_HISTORY" else 14
+    today_word_target = "Bu seri için pratik hedef 105-130 kelimedir; 100 kelimenin altına kesinlikle inme." if content_type == "TODAY_IN_HISTORY" else ""
     style_instruction = {
         "TODAY_IN_HISTORY": "Bu özel seri 45-75 saniyelik mini tarih hikâyesidir. Olayı sadece özetleme; bağlam, mekanizma, şaşırtıcı ayrıntı ve sonuç arasında akıcı bir hikâye kur.",
         "AYT_HISTORY": "Bu eğitim serisidir. Bilgiyi ezberlenebilir karşılaştırma, kronoloji veya kısa sınav ipucuyla anlat; gereksiz dramatizasyon yapma.",
@@ -684,7 +685,7 @@ EFSANELER / SPEKÜLASYONLAR:
 Bu olayı tam {SCENE_COUNT} sahnelik bir Shorts senaryosu olarak yaz.
 İçerik tipi: {content_type}
 Hedef seslendirme süresi yaklaşık {target_duration} saniye; toplam {min_words}-{max_words} kelime.
-AMAÇ: toplam narration {min_words}-{max_words} kelime aralığında kalmalı. {("TODAY_IN_HISTORY" == content_type ? "Bu seri için pratik hedef 105-130 kelimedir; 100 kelimenin altına kesinlikle inme." : "")} Her sahne {scene_min_words}-{scene_max_words} kelime olsun.
+AMAÇ: toplam narration {min_words}-{max_words} kelime aralığında kalmalı. {today_word_target} Her sahne {scene_min_words}-{scene_max_words} kelime olsun.
 Öncelik doğal Türkçe ve bilgi yoğunluğudur. {style_instruction}
 
 Sahne Hikaye Şablonu:
