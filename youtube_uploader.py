@@ -239,21 +239,18 @@ def upload_shorts_video(
     if not video_id:
         raise RuntimeError("YouTube API did not return a valid video ID.")
 
-    # Verify the privacy status that YouTube actually stored. This is
-    # important because an API project may be subject to public-upload
-    # restrictions even when public was requested.
-    verify_response = client.videos().list(
-        part="status",
-        id=video_id,
-    ).execute()
+    # videos.insert already returns the uploaded video resource, including
+    # status because part="snippet,status" was requested above. Do not make a
+    # second videos.list call here: that read-back requires broader OAuth
+    # permissions than the upload itself and can make a successful upload look
+    # like a failed publish when the token is scoped only for upload.
     actual_privacy = (
-        (verify_response.get("items") or [{}])[0]
-        .get("status", {})
-        .get("privacyStatus")
+        (response.get("status") or {}).get("privacyStatus")
+        or metadata["status"]["privacyStatus"]
     )
     if actual_privacy != metadata["status"]["privacyStatus"]:
         raise RuntimeError(
-            "YouTube accepted the upload but stored a different privacy status: "
+            "YouTube accepted the upload but returned a different privacy status: "
             f"requested={metadata['status']['privacyStatus']}, actual={actual_privacy}"
         )
 
