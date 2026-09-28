@@ -2388,6 +2388,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    visual_warnings: list = []
     # Run migration if needed
     if not event_memory.EVENT_MEMORY_FILE.exists():
         log.info("First run with V2 engine. Attempting migration...")
@@ -2447,15 +2448,16 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     )
 
     diversity_report = content_memory_module.evaluate_visual_diversity(scenes)
+    visual_warnings = diversity_report.get("warnings", [])
     log.info(
         "Visual diversity evaluated — score: %.2f (acceptable=%s, types=%d, shots=%d, warnings=%d)",
         diversity_report["diversity_score"],
         diversity_report["is_acceptable"],
         diversity_report["unique_visual_types_count"],
         diversity_report["unique_shot_types_count"],
-        len(diversity_report["warnings"]),
+        len(visual_warnings),
     )
-    if diversity_report["warnings"]:
+    if visual_warnings:
         scenes = content_memory_module.diversify_image_prompts(scenes)
 
     log.info("5/8 Generating voice and word timestamps")
