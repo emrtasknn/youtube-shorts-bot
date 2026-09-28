@@ -276,9 +276,9 @@ export default {
 
       if (
         (request.method === "GET" || request.method === "HEAD") &&
-        url.pathname === "/tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD"
+        url.pathname === "/tiktok-developers-site-verification=1uhsfoXkPy9abNfuJa6DFFOYdCVndMN8"
       ) {
-        return new Response("tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD", {
+        return new Response("tiktok-developers-site-verification=1uhsfoXkPy9abNfuJa6DFFOYdCVndMN8", {
           status: 200,
           headers: {
             "content-type": "text/plain; charset=utf-8",
