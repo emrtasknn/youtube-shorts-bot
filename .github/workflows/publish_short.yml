@@ -146,6 +146,7 @@ jobs:
 
       - name: Get TikTok access token
         id: tiktok_token
+        continue-on-error: true
         env:
           CONTROL_API_URL: ${{ secrets.CONTROL_API_URL }}
           CONTROL_API_SECRET: ${{ secrets.CONTROL_API_SECRET }}
@@ -159,6 +160,7 @@ jobs:
 
       - name: Upload to TikTok
         id: tiktok_upload
+        continue-on-error: true
         env:
           TIKTOK_ACCESS_TOKEN: ${{ steps.tiktok_token.outputs.access_token }}
           VIDEO: ${{ steps.locate.outputs.video }}
