@@ -2589,7 +2589,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             bg_music = AudioFileClip(str(music_path))
             selected_audio_track = music_path.name
             if bg_music.duration < total_duration:
-                bg_music = bg_music.loop(duration=total_duration)
+                # MoviePy 2.x removed AudioClip.loop(). Repeat the source
+                # explicitly, then trim the concatenated track to the video
+                # duration.
+                repeat_count = max(2, int(np.ceil(total_duration / bg_music.duration)))
+                bg_music = concatenate_audioclips([bg_music] * repeat_count)
+                bg_music = bg_music.subclipped(0, total_duration)
             else:
                 bg_music = bg_music.subclipped(0, total_duration)
 
