@@ -225,13 +225,15 @@ def validate_script(data: dict, min_total_words: int | None = None, max_total_wo
         if not visual_fact:
             raise ValueError(f"Scene {i} is missing visual_fact")
         allowed_visual_roles = {
-            "evidence", "mechanism", "reconstruction", "context_map",
-            "person_or_entity", "aftermath", "atmosphere"
+            "evidence", "mechanism", "reconstruction", "event_reconstruction",
+            "context_map", "person_or_entity", "aftermath", "atmosphere"
         }
         visual_role_aliases = {
             "crowd": "person_or_entity",
             "action": "mechanism",
             "crowd/action": "mechanism",
+            "event": "event_reconstruction",
+            "event_reconstruction": "event_reconstruction",
             "map": "context_map",
             "person": "person_or_entity",
             "entity": "person_or_entity",
@@ -243,6 +245,8 @@ def validate_script(data: dict, min_total_words: int | None = None, max_total_wo
         visual_role = visual_role_aliases.get(visual_role, visual_role)
         if visual_role not in allowed_visual_roles:
             raise ValueError(f"Scene {i} has invalid visual_role: {visual_role}")
+        if i == SCENE_COUNT and visual_role == "atmosphere":
+            raise ValueError("Scene 7 cannot use visual_role='atmosphere'; final scene must resolve the story")
         if not isinstance(visual_intent, dict):
             raise ValueError(f"Scene {i} is missing visual_intent")
         required_intent = ["primary_subject", "visual_type", "visual_action", "scene_context", "shot_type", "composition", "must_show", "avoid", "search_queries"]
@@ -317,8 +321,11 @@ def validate_script(data: dict, min_total_words: int | None = None, max_total_wo
             raise ValueError(f"Scene {i} event_specificity/information_density must be numeric")
         if not 0.0 <= event_specificity <= 1.0 or not 0.0 <= information_density <= 1.0:
             raise ValueError(f"Scene {i} visual planning scores must be between 0 and 1")
-        if visual_role != "atmosphere" and event_specificity < 0.70:
-            raise ValueError(f"Scene {i} event_specificity is too low: {event_specificity:.2f} (<0.70)")
+        min_specificity = 0.75 if visual_role == "event_reconstruction" else 0.70
+        if visual_role != "atmosphere" and event_specificity < min_specificity:
+            raise ValueError(
+                f"Scene {i} event_specificity is too low: {event_specificity:.2f} (<{min_specificity:.2f})"
+            )
         cleaned.append({
             "narration": narration,
             "image_prompt": image_prompt,
@@ -331,6 +338,16 @@ def validate_script(data: dict, min_total_words: int | None = None, max_total_wo
             "ending_strategy": str(scene.get("ending_strategy", "")) if i == SCENE_COUNT else "",
         })
 
+
+    atmosphere_indices = [
+        idx for idx, scene in enumerate(cleaned, 1)
+        if scene.get("visual_role") == "atmosphere"
+    ]
+    if len(atmosphere_indices) > 1:
+        raise ValueError(
+            f"Storyboard allows at most one atmosphere scene; found {len(atmosphere_indices)} "
+            f"at scenes {atmosphere_indices}"
+        )
 
     # Keep Shorts comfortably short while allowing natural variation.
     min_words = MIN_TOTAL_WORDS if min_total_words is None else min_total_words
@@ -2250,11 +2267,12 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
             raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
 
     atmosphere_count = sum(1 for scene in results if scene.get("visual_role") == "atmosphere")
-    if atmosphere_count > MAX_ATMOSPHERE_SCENES:
+    if atmosphere_count > 1:
         raise ValueError(
-            f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); "
-            f"maximum is {MAX_ATMOSPHERE_SCENES}"
+            f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); maximum is 1"
         )
+    if results and results[-1].get("visual_role") == "atmosphere":
+        raise ValueError("Visual QA failed: final scene cannot be atmosphere-only")
 
     factual_scenes = [scene for scene in results if scene.get("visual_role") != "atmosphere"]
     if not factual_scenes:
@@ -2573,6 +2591,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     for i, scene in enumerate(scenes, 1):
         visual_intent = scene.get("visual_intent", {})
         terms = list(visual_intent.get("search_queries", []))
+        is_final_scene = i == SCENE_COUNT
+        scene["is_final_scene"] = is_final_scene
         v_source = event_memory.resolve_visual_source(
             scene_description=scene["narration"],
             visual_search_terms=terms,
@@ -2580,6 +2600,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             excluded_urls=used_visual_urls,
             visual_intent=visual_intent,
             event_context=event_context,
+            final_scene=is_final_scene,
         )
         v_source["visual_fact"] = scene.get("visual_fact", "")
         v_source["visual_role"] = scene.get("visual_role", "")
@@ -2745,7 +2766,13 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     subtitles = generate_subtitle_clips(words_data)
     if not subtitles:
         log.warning("Warning: No subtitle clips were generated for this Short!")
-    hook_badge = create_hook_badge(duration=min(2.5, total_duration), title=research_dossier.get("story_hook") or topic_compat["title"])
+    # Keep the visual hook badge in the channel's language. Research hooks can
+    # occasionally be returned in English even when the Short itself is Turkish.
+    hook_badge_title = topic_compat.get("youtube_title") or topic_compat.get("title") or "TARİHİN BİLİNMEYEN GİZEMİ"
+    hook_badge = create_hook_badge(
+        duration=min(2.5, total_duration),
+        title=hook_badge_title,
+    )
 
     video = CompositeVideoClip(
         [base_video, hook_badge] + subtitles, size=(VIDEO_WIDTH, VIDEO_HEIGHT)
