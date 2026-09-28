@@ -76,8 +76,8 @@ REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65")
 # Atmosphere shots are useful as transitions, but should never replace the
 # factual core of a short. Two or three are reviewable warnings; four or more
 # indicate that the storyboard is no longer carrying enough event detail.
-ATMOSPHERE_WARNING_THRESHOLD = int(os.getenv("ATMOSPHERE_WARNING_THRESHOLD", "2"))
-MAX_ATMOSPHERE_SCENES = int(os.getenv("MAX_ATMOSPHERE_SCENES", "3"))
+ATMOSPHERE_WARNING_THRESHOLD = int(os.getenv("ATMOSPHERE_WARNING_THRESHOLD", "1"))
+MAX_ATMOSPHERE_SCENES = int(os.getenv("MAX_ATMOSPHERE_SCENES", "1"))
 MIN_VISUAL_QA_QUALITY_SCORE = float(os.getenv("MIN_VISUAL_QA_QUALITY_SCORE", "0.60"))
 
 # AI-driven sound effects. Gemini chooses semantic cues; the renderer maps
@@ -2267,9 +2267,10 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
             raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
 
     atmosphere_count = sum(1 for scene in results if scene.get("visual_role") == "atmosphere")
-    if atmosphere_count > 1:
+    if atmosphere_count > MAX_ATMOSPHERE_SCENES:
         raise ValueError(
-            f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); maximum is 1"
+            f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); "
+            f"maximum is {MAX_ATMOSPHERE_SCENES}"
         )
     if results and results[-1].get("visual_role") == "atmosphere":
         raise ValueError("Visual QA failed: final scene cannot be atmosphere-only")
