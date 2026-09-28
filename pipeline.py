@@ -861,7 +861,7 @@ Kurallar:
                     f"İçerik tipi {content_type}; hedef toplam {min_words}-{max_words} kelime. "
                     "Önceki denemede uzunluk/visual QA nedeniyle reddedildi; bu kez tüm kuralları aynı anda karşıla. "
                     f"Her sahne {scene_min_words}-{scene_max_words} kelime sınırını korusun. "
-                    + ("TREND_HISTORY ise 7 sahnenin tamamında 8-10 kelimeyi aşma; toplam 56-70 kelime, tercihen 60-66 kelime hedefle. " if content_type == "TREND_HISTORY" else "")
+                    f"{'TREND_HISTORY ise 7 sahnenin tamamında 8-10 kelimeyi aşma; toplam 56-70 kelime, tercihen 60-66 kelime hedefle. ' if content_type == 'TREND_HISTORY' else ''}"
                     "visual_fact ve visual_intent.visual_fact aynı anlamı taşımalı; "
                     "visual_role ve visual_intent.visual_role aynı olmalı. "
                     "visual_action, scene_context, shot_type ve composition alanlarını doldur; "
