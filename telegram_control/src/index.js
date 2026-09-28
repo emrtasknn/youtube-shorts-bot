@@ -267,6 +267,47 @@ export default {
     try {
       const url = new URL(request.url);
 
+      if (request.method === "GET" && url.pathname === "/") {
+        return legalPage("Bir Garip Tarih", `
+<p>Bir Garip Tarih, kısa ve ilgi çekici tarih videoları hazırlayan bir içerik platformudur.</p>
+<p>Bu web alanı, içerik yayınlama entegrasyonları ve uygulama bilgileri için kullanılmaktadır.</p>
+`);
+      }
+
+      if (request.method === "GET" && url.pathname === "/terms") {
+        return legalPage("Terms of Service", `
+<p><strong>Son güncelleme:</strong> 28 Eylül 2026</p>
+<h2>1. Hizmet</h2>
+<p>Bir Garip Tarih, kısa tarih içeriklerinin hazırlanması, yönetilmesi ve yetkilendirilmiş sosyal medya hesaplarında paylaşılması için kullanılan bir içerik platformudur.</p>
+<h2>2. Kullanıcı Yetkilendirmesi</h2>
+<p>Sosyal medya hesaplarına içerik gönderme özellikleri yalnızca hesap sahibi tarafından açıkça yetkilendirildiğinde kullanılır. Kullanıcı, yetkilendirmeyi istediği zaman ilgili platformun hesap ve uygulama ayarlarından kaldırabilir.</p>
+<h2>3. İçerik Yayınlama</h2>
+<p>Bir Garip Tarih, yetkilendirilmiş hesabın onayı olmadan içerik yayınlamayı amaçlamaz. Kullanıcı tarafından onaylanan içerikler ilgili platformun API kurallarına uygun şekilde gönderilir.</p>
+<h2>4. Sorumluluk</h2>
+<p>Kullanıcı, hesabı üzerinden yayınlanan içeriklerin ve hesabın kullanımının ilgili platformların kurallarına uygun olmasından sorumludur. Hizmet, üçüncü taraf platformların kesintilerinden veya politika değişikliklerinden etkilenebilir.</p>
+<h2>5. İletişim</h2>
+<p>İletişim: birgariptarihofficial@gmail.com</p>
+`);
+      }
+
+      if (request.method === "GET" && url.pathname === "/privacy") {
+        return legalPage("Privacy Policy", `
+<p><strong>Son güncelleme:</strong> 28 Eylül 2026</p>
+<h2>1. Toplanan Bilgiler</h2>
+<p>Uygulama, sosyal medya hesabı yetkilendirmesi sırasında ilgili platform tarafından sağlanan hesap kimliği, yetkilendirme kapsamı ve erişim yenileme bilgileri gibi teknik verileri, entegrasyonu çalıştırmak için gerekli olduğu ölçüde saklayabilir.</p>
+<h2>2. TikTok Verileri</h2>
+<p>TikTok entegrasyonunda erişim ve yenileme belirteçleri yalnızca yetkilendirilmiş hesabın içerik yayınlama işlemlerini gerçekleştirmek ve erişimi yenilemek amacıyla kullanılır. Bu bilgiler herkese açık olarak paylaşılmaz.</p>
+<h2>3. Kullanım Amacı</h2>
+<p>Veriler; hesap yetkilendirmesini yönetmek, onaylanan videoları yayınlamak, yayınlama durumunu takip etmek ve teknik sorunları gidermek amacıyla kullanılır.</p>
+<h2>4. Saklama ve Güvenlik</h2>
+<p>Yetkilendirme verileri erişimi kısıtlanmış uygulama altyapısında saklanır. Kullanıcı yetkilendirmeyi kaldırdığında veya entegrasyon artık gerekli olmadığında ilgili kimlik doğrulama verileri silinebilir.</p>
+<h2>5. Üçüncü Taraf Hizmetler</h2>
+<p>İçerik yayınlama özellikleri TikTok gibi üçüncü taraf platformların API'lerini kullanabilir. Bu platformların kendi gizlilik politikaları ve kullanım koşulları ayrıca geçerlidir.</p>
+<h2>6. İletişim</h2>
+<p>Gizlilikle ilgili sorular için: birgariptarihofficial@gmail.com</p>
+`);
+      }
+
       if (request.method === "GET" && url.pathname === "/health") {
         return json({ ok: true, service: "telegram-control" });
       }
