@@ -1111,6 +1111,27 @@ def _visual_relevance(query: str, title: str, description: str = "") -> float:
     return round(min(1.0, 0.78 * coverage + 0.22 * precision), 3)
 
 
+TEXT_HEAVY_VISUAL_TERMS = {
+    "poster", "postcard", "title card", "titlecard", "thumbnail", "cover",
+    "book cover", "movie poster", "film poster", "advertisement", "advertising",
+    "banner", "flyer", "brochure", "album cover", "magazine cover",
+    "illustrated title", "text overlay", "with text", "captioned",
+}
+
+
+def _visual_text_risk(title: str, description: str = "") -> tuple[float, list[str]]:
+    """Estimate whether a source is likely to contain editorial/title text.
+
+    This is metadata-based and intentionally conservative. Documentary
+    evidence such as maps/documents may legitimately contain text, so callers
+    decide whether to apply the penalty/rejection.
+    """
+    hay = f"{title} {description}".lower()
+    hits = [term for term in TEXT_HEAVY_VISUAL_TERMS if term in hay]
+    risk = min(1.0, 0.30 * len(hits))
+    return round(risk, 3), hits
+
+
 def search_wikimedia_image(
     search_term: str,
     event_title: str = "",
@@ -1118,8 +1139,9 @@ def search_wikimedia_image(
     min_relevance: float = 0.65,
     visual_intent: Optional[dict] = None,
     event_context: Optional[dict] = None,
+    final_scene: bool = False,
 ) -> Optional[dict]:
-    """Search Wikimedia Commons and reject weakly related results."""
+    """Search Wikimedia Commons and reject weakly related or text-heavy editorial results."""
     excluded = set(excluded_urls or [])
     try:
         import requests
@@ -1147,6 +1169,14 @@ def search_wikimedia_image(
             specificity_meta = {}
             density = 0.0
             density_meta = {}
+            text_risk, text_risk_terms = _visual_text_risk(title, snippet)
+            role = str((visual_intent or {}).get("visual_role", "")).lower()
+            # Documents and maps are allowed to contain text by design.
+            # Other scene types should not silently select title-card/poster-like assets.
+            if role not in {"document", "context_map"} and text_risk >= 0.30:
+                continue
+            if final_scene and role == "atmosphere":
+                continue
             if event_context:
                 specificity, specificity_meta = _visual_event_specificity(
                     title=title,
@@ -1169,10 +1199,14 @@ def search_wikimedia_image(
                 + 0.25 * specificity
                 + 0.20 * density
                 + 0.10 * score
+                - (0.10 * text_risk if role not in {"document", "context_map"} else 0.0)
             ) if event_context else max(score, intent_score)
-            ranked.append((rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score))
+            ranked.append((
+                rank_score, item, intent_meta, specificity, specificity_meta,
+                density, density_meta, score, text_risk, text_risk_terms
+            ))
         ranked.sort(key=lambda x: x[0], reverse=True)
-        for rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score in ranked[:5]:
+        for rank_score, item, intent_meta, specificity, specificity_meta, density, density_meta, score, text_risk, text_risk_terms in ranked[:5]:
             file_title = item.get("title", "")
             if not file_title:
                 continue
@@ -1213,6 +1247,8 @@ def search_wikimedia_image(
                     "event_specificity_meta": specificity_meta,
                     "information_density": density,
                     "information_density_meta": density_meta,
+                    "text_risk": text_risk,
+                    "text_risk_terms": text_risk_terms,
                 }
     except Exception as exc:
         log.debug("Wikimedia search failed for %r: %s", search_term, exc)
@@ -1226,6 +1262,7 @@ def search_openverse_image(
     event_title: str = "",
     visual_intent: Optional[dict] = None,
     event_context: Optional[dict] = None,
+    final_scene: bool = False,
 ) -> Optional[dict]:
     """Find an openly licensed image and reject weakly related results."""
     excluded = set(excluded_urls or [])
@@ -1268,6 +1305,17 @@ def search_openverse_image(
                 specificity_meta = {}
                 density = 0.0
                 density_meta = {}
+                text_risk, text_risk_terms = _visual_text_risk(
+                    str(item.get("title", "")),
+                    haystack,
+                )
+                role = str((visual_intent or {}).get("visual_role", "")).lower()
+                # Documents/maps may contain legitimate text. For ordinary
+                # narrative visuals, reject likely posters/title cards/thumbnails.
+                if role not in {"document", "context_map"} and text_risk >= 0.30:
+                    continue
+                if final_scene and role == "atmosphere":
+                    continue
                 if event_context:
                     specificity, specificity_meta = _visual_event_specificity(
                         title=str(item.get("title", "")),
@@ -1289,12 +1337,26 @@ def search_openverse_image(
                         if specificity < 0.35:
                             continue
 
-                rank_score = (0.45 * intent_score + 0.25 * specificity + 0.20 * density + 0.10 * score) if event_context else score
+                rank_score = (
+                    0.45 * intent_score
+                    + 0.25 * specificity
+                    + 0.20 * density
+                    + 0.10 * score
+                    - (0.10 * text_risk if role not in {"document", "context_map"} else 0.0)
+                ) if event_context else score
                 if best is None or rank_score > best[0]:
-                    best = (rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score)
+                    best = (
+                        rank_score, item, query, intent_meta, score, specificity,
+                        specificity_meta, density, density_meta, intent_score,
+                        text_risk, text_risk_terms
+                    )
 
         if best:
-            rank_score, item, query, intent_meta, score, specificity, specificity_meta, density, density_meta, intent_score = best
+            (
+                rank_score, item, query, intent_meta, score, specificity,
+                specificity_meta, density, density_meta, intent_score,
+                text_risk, text_risk_terms
+            ) = best
             return {
                 "source_type": "openverse",
                 "source_url": item.get("foreign_landing_url") or item.get("detail_url"),
@@ -1313,6 +1375,8 @@ def search_openverse_image(
                 "event_specificity_meta": specificity_meta,
                 "information_density": round(density, 3),
                 "information_density_meta": density_meta,
+                "text_risk": round(text_risk, 3),
+                "text_risk_terms": text_risk_terms,
             }
     except Exception as exc:
         log.debug("Openverse search failed: %s", exc)
@@ -1374,10 +1438,27 @@ def resolve_visual_source(
     excluded_urls: Optional[list[str]] = None,
     visual_intent: Optional[dict] = None,
     event_context: Optional[dict] = None,
+    final_scene: bool = False,
 ) -> dict:
     """Resolve visual: scene-specific real source first, otherwise targeted AI reconstruction."""
     excluded = set(excluded_urls or [])
     intent = visual_intent or {}
+    role = str(intent.get("visual_role", "")).lower()
+    if final_scene and role == "atmosphere":
+        log.warning(
+            "FINAL SCENE visual role was atmosphere; refusing atmosphere-only source resolution."
+        )
+        return {
+            "source_type": "ai_reconstruction",
+            "note": "Final scene cannot use atmosphere-only visual resolution.",
+            "search_queries": [],
+            "relevance_threshold": 0.65,
+            "event_specificity": 0.0,
+            "information_density": 0.0,
+            "visual_fact": intent.get("visual_fact", ""),
+            "visual_role": "aftermath",
+            "text_risk": 0.0,
+        }
     queries = build_visual_search_queries(scene_description, intent, event_title)
 
     for query in queries:
@@ -1388,11 +1469,15 @@ def resolve_visual_source(
             min_relevance=0.65,
             visual_intent=intent,
             event_context=event_context,
+            final_scene=final_scene,
         )
         if result:
-            if event_context and str(intent.get("visual_role", "")).lower() != "atmosphere":
-                if float(result.get("event_specificity", 0)) < 0.35:
+            if event_context and role != "atmosphere":
+                specificity_floor = 0.45 if final_scene else 0.35
+                if float(result.get("event_specificity", 0)) < specificity_floor:
                     continue
+            if role not in {"document", "context_map"} and float(result.get("text_risk", 0)) >= 0.30:
+                continue
             log.info(
                 "VISUAL: %s → Wikimedia %s relevance=%.2f specificity=%.2f",
                 scene_description[:40],
@@ -1409,16 +1494,25 @@ def resolve_visual_source(
         event_title=event_title,
         visual_intent=intent,
         event_context=event_context,
+        final_scene=final_scene,
     )
     if result:
-        log.info(
-            "VISUAL: %s → Openverse %s relevance=%.2f specificity=%.2f",
-            scene_description[:40],
-            result.get("title", ""),
-            result.get("relevance_score", 0),
-            result.get("event_specificity", 0),
-        )
-        return result
+        if role != "atmosphere":
+            specificity_floor = 0.45 if final_scene else 0.35
+            if float(result.get("event_specificity", 0)) < specificity_floor:
+                result = None
+        if result and role not in {"document", "context_map"} and float(result.get("text_risk", 0)) >= 0.30:
+            result = None
+        if result:
+            log.info(
+                "VISUAL: %s → Openverse %s relevance=%.2f specificity=%.2f text_risk=%.2f",
+                scene_description[:40],
+                result.get("title", ""),
+                result.get("relevance_score", 0),
+                result.get("event_specificity", 0),
+                result.get("text_risk", 0),
+            )
+            return result
 
     log.info(
         "VISUAL: %s → AI reconstruction; no sufficiently specific real visual found",

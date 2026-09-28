@@ -1148,5 +1148,34 @@
     "created_at": "2026-09-28T16:22:26",
     "status": "used",
     "completed_at": "2026-09-28T16:34:29"
+  },
+  {
+    "event_id": "evt_5cd8033a3396",
+    "canonical_title": "The Lost City of Z",
+    "aliases": [
+      "Z Şehri",
+      "Percy Fawcett'in Kayıp Şehri"
+    ],
+    "date": "1925",
+    "date_normalized": "1925",
+    "location": "Amazon Rainforest, Brazil",
+    "entities": [
+      "Percy Fawcett",
+      "Jack Fawcett"
+    ],
+    "event_summary": "Explorer Percy Fawcett disappeared while searching for an ancient, advanced civilization he called 'Z' in the uncharted Mato Grosso region of the Amazon.",
+    "core_facts": [
+      "Fawcett disappeared in 1925",
+      "He was obsessed with the idea of a lost civilization",
+      "Modern lidar surveys reveal large earthworks in the Amazon"
+    ],
+    "claims": [],
+    "sources": [
+      "https://en.wikipedia.org/wiki/Lost_City_of_Z"
+    ],
+    "first_video_id": "run_20260928_174439",
+    "created_at": "2026-09-28T17:47:11",
+    "status": "used",
+    "completed_at": "2026-09-28T17:56:07"
   }
 ]
