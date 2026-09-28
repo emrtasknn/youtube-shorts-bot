@@ -35,6 +35,7 @@ import gemini_config
 import content_engine
 import scene_motion
 import prompt_engine
+import visual_qc
 
 
 # -----------------------------
@@ -2597,7 +2598,26 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
                 topic_title=topic_compat["title"],
                 event_context=event_context,
             )
-            download_ai_image(ai_prompt, image_path)
+            # V2 Phase G: validate generated image quality; retry on blank/corrupt output.
+            qc_result = visual_qc.download_with_qc(
+                prompt=ai_prompt,
+                image_path=image_path,
+                download_fn=download_ai_image,
+            )
+            scene["image_qc"] = qc_result
+            if not qc_result.get("valid", True):
+                log.warning(
+                    "Scene %d: image QC did not pass after %d attempt(s) (%s); "
+                    "proceeding with available image.",
+                    i, qc_result.get("attempts", 1), qc_result.get("reason", ""),
+                )
+            else:
+                log.info(
+                    "Scene %d: image QC passed (%dx%d, %d colours, %d bytes, %d attempt(s))",
+                    i, qc_result.get("width", 0), qc_result.get("height", 0),
+                    qc_result.get("unique_colors", -1), qc_result.get("file_size_bytes", 0),
+                    qc_result.get("attempts", 1),
+                )
 
         enhancement_info = enhance_source_image(
             image_path,
