@@ -78,6 +78,25 @@ async function removeButtons(env, chatId, messageId) {
   });
 }
 
+function legalPage(title, body) {
+  return new Response(`<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title} — Bir Garip Tarih</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;max-width:820px;margin:0 auto;padding:40px 22px;line-height:1.65;color:#222;background:#faf9f7}
+    h1{line-height:1.2} h2{margin-top:28px} a{color:#6b4b2a}
+    .card{background:#fff;border:1px solid #e5e1dc;border-radius:14px;padding:28px;box-shadow:0 4px 18px rgba(0,0,0,.04)}
+    footer{margin-top:32px;color:#666;font-size:14px}
+  </style>
+</head>
+<body><main class="card"><h1>${title}</h1>${body}
+<footer>Bir Garip Tarih · <a href="/terms">Terms of Service</a> · <a href="/privacy">Privacy Policy</a></footer>
+</main></body></html>`, {status:200, headers:{"content-type":"text/html; charset=utf-8"}});
+}
+
 async function handleCallback(env, callback) {
   const message = callback.message;
   if (!message || String(message.chat.id) !== String(env.TELEGRAM_CHAT_ID)) {
