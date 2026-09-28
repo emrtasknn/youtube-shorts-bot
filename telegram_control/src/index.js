@@ -4,6 +4,25 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
 }
 
+async function tiktokToken(env, grantType, extra = {}) {
+  const body = new URLSearchParams({
+    client_key: env.TIKTOK_CLIENT_KEY,
+    client_secret: env.TIKTOK_CLIENT_SECRET,
+    grant_type: grantType,
+    ...extra,
+  });
+  const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(`TikTok OAuth failed: ${res.status} ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+
 async function telegram(env, method, body) {
   const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -269,6 +288,89 @@ export default {
         }, 502);
       }
 
+      if (request.method === "GET" && url.pathname === "/tiktok/connect") {
+        if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_REDIRECT_URI) {
+          return json({ error: "TikTok OAuth is not configured." }, 500);
+        }
+        const state = crypto.randomUUID();
+        await env.APPROVALS.put(
+          `tiktok:oauth-state:${state}`,
+          JSON.stringify({ created_at: new Date().toISOString() }),
+          { expirationTtl: 600 }
+        );
+        const params = new URLSearchParams({
+          client_key: env.TIKTOK_CLIENT_KEY,
+          response_type: "code",
+          scope: "video.publish",
+          redirect_uri: env.TIKTOK_REDIRECT_URI,
+          state,
+        });
+        return Response.redirect(
+          `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`,
+          302
+        );
+      }
+
+      if (request.method === "GET" && url.pathname === "/tiktok/callback") {
+        const state = url.searchParams.get("state") || "";
+        const code = url.searchParams.get("code") || "";
+        const error = url.searchParams.get("error") || "";
+        const errorDescription = url.searchParams.get("error_description") || "";
+        if (error) return new Response(`TikTok authorization failed: ${error} ${errorDescription}`, { status: 400 });
+        if (!state || !code) return new Response("Missing TikTok OAuth state/code.", { status: 400 });
+
+        const stateKey = `tiktok:oauth-state:${state}`;
+        const stateRecord = await env.APPROVALS.get(stateKey, "json");
+        if (!stateRecord) return new Response("TikTok OAuth state expired or invalid.", { status: 400 });
+        await env.APPROVALS.delete(stateKey);
+
+        const token = await tiktokToken(env, "authorization_code", {
+          code,
+          redirect_uri: env.TIKTOK_REDIRECT_URI,
+        });
+        if (!token.refresh_token) return new Response("TikTok did not return a refresh token.", { status: 502 });
+
+        await env.APPROVALS.put("tiktok:credentials", JSON.stringify({
+          refresh_token: token.refresh_token,
+          open_id: token.open_id || "",
+          scope: token.scope || "",
+          updated_at: new Date().toISOString(),
+        }));
+
+        return new Response(
+          "TikTok connected successfully. You can close this tab and return to Telegram.",
+          { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } }
+        );
+      }
+
+      if (request.method === "POST" && url.pathname === "/tiktok/access-token") {
+        const secret = request.headers.get("X-Control-Secret");
+        if (!secret || secret !== env.CONTROL_API_SECRET) return json({ error: "unauthorized" }, 401);
+        if (!env.TIKTOK_CLIENT_KEY || !env.TIKTOK_CLIENT_SECRET) {
+          return json({ error: "TikTok OAuth is not configured." }, 500);
+        }
+
+        const credentials = await env.APPROVALS.get("tiktok:credentials", "json");
+        if (!credentials?.refresh_token) {
+          return json({ error: "TikTok account is not connected. Open /tiktok/connect first." }, 409);
+        }
+
+        const token = await tiktokToken(env, "refresh_token", {
+          refresh_token: credentials.refresh_token,
+        });
+        await env.APPROVALS.put("tiktok:credentials", JSON.stringify({
+          refresh_token: token.refresh_token || credentials.refresh_token,
+          open_id: token.open_id || credentials.open_id || "",
+          scope: token.scope || credentials.scope || "",
+          updated_at: new Date().toISOString(),
+        }));
+        return json({
+          access_token: token.access_token,
+          expires_in: token.expires_in || 0,
+          open_id: token.open_id || credentials.open_id || "",
+        });
+      }
+
       if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
       const secret = request.headers.get("X-Control-Secret");
@@ -303,15 +405,28 @@ export default {
         state.youtube_url = result.youtube_url || "";
         state.youtube_video_id = result.youtube_video_id || "";
         state.playlist = result.playlist || {};
+        state.tiktok_url = result.tiktok_url || "";
+        state.tiktok_publish_id = result.tiktok_publish_id || "";
+        state.tiktok_post_id = result.tiktok_post_id || "";
+        state.tiktok_status = result.tiktok_status || "";
+        state.tiktok_fail_reason = result.tiktok_fail_reason || "";
+        state.tiktok_error = result.tiktok_error || "";
         state.error = result.error || "";
         state.updated_at = new Date().toISOString();
         await saveState(env, result.run_id, state);
 
         const title = state.topic?.youtube_title || state.topic?.youtube_title || state.topic?.title || "Video";
         if (state.status === "published") {
+          const tiktokLine = state.tiktok_url
+            ? `\\n\\n🎵 TikTok: ${state.tiktok_url}`
+            : state.tiktok_status
+              ? `\\n\\n🎵 TikTok: ${state.tiktok_status}${state.tiktok_fail_reason ? ` — ${state.tiktok_fail_reason}` : ""}`
+              : state.tiktok_error
+                ? `\\n\\n⚠️ TikTok yüklemesi başarısız: ${state.tiktok_error}`
+                : "";
           await telegram(env, "sendMessage", {
             chat_id: env.TELEGRAM_CHAT_ID,
-            text: `🎉 ${title} başarıyla YouTube Shorts'a yüklendi.\\n\\n🔗 ${state.youtube_url}${state.playlist?.status === "added" ? "\\n📚 Playlist'e eklendi." : state.playlist?.status === "failed" ? "\\n⚠️ Playlist'e eklenemedi; video yayında." : ""}`,
+            text: `🎉 ${title} yayınlandı.\\n\\n▶️ YouTube: ${state.youtube_url}${tiktokLine}${state.playlist?.status === "added" ? "\\n📚 Playlist'e eklendi." : state.playlist?.status === "failed" ? "\\n⚠️ Playlist'e eklenemedi; YouTube videosu yayında." : ""}`,
           });
         } else {
           await telegram(env, "sendMessage", {
