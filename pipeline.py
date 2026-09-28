@@ -2444,9 +2444,16 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         topic_title=topic_compat["title"],
     )
 
-    visual_warnings = content_memory_module.check_visual_reuse(scenes)
-    if visual_warnings:
-        log.info("Visual reuse detected in %d scene pairs; diversifying prompts", len(visual_warnings))
+    diversity_report = content_memory_module.evaluate_visual_diversity(scenes)
+    log.info(
+        "Visual diversity evaluated — score: %.2f (acceptable=%s, types=%d, shots=%d, warnings=%d)",
+        diversity_report["diversity_score"],
+        diversity_report["is_acceptable"],
+        diversity_report["unique_visual_types_count"],
+        diversity_report["unique_shot_types_count"],
+        len(diversity_report["warnings"]),
+    )
+    if diversity_report["warnings"]:
         scenes = content_memory_module.diversify_image_prompts(scenes)
 
     log.info("5/8 Generating voice and word timestamps")

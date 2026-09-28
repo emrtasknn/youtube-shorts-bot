@@ -155,6 +155,58 @@ def test_diversify_image_prompts():
     assert scenes[2]["image_prompt"] != original_prompt_3
 
 
+def test_check_visual_reuse_consecutive_visual_type():
+    """Detects 3 or more consecutive identical visual_types."""
+    scenes = [
+        {"image_prompt": "p1", "visual_type": "portrait"},
+        {"image_prompt": "p2", "visual_type": "portrait"},
+        {"image_prompt": "p3", "visual_type": "portrait"},
+        {"image_prompt": "p4", "visual_type": "landscape"},
+    ]
+    warnings = content_memory.check_visual_reuse(scenes)
+    assert any(w.get("type") == "consecutive_visual_type" for w in warnings)
+
+
+def test_check_visual_reuse_consecutive_shot_type():
+    """Detects 3 or more consecutive identical shot_types."""
+    scenes = [
+        {"image_prompt": "p1", "shot_type": "close_up"},
+        {"image_prompt": "p2", "shot_type": "close_up"},
+        {"image_prompt": "p3", "shot_type": "close_up"},
+    ]
+    warnings = content_memory.check_visual_reuse(scenes)
+    assert any(w.get("type") == "consecutive_shot_type" for w in warnings)
+
+
+def test_check_visual_reuse_visual_type_overload():
+    """Detects when a single visual_type accounts for > 60% of scenes."""
+    scenes = [
+        {"image_prompt": "p1", "visual_type": "document"},
+        {"image_prompt": "p2", "visual_type": "document"},
+        {"image_prompt": "p3", "visual_type": "document"},
+        {"image_prompt": "p4", "visual_type": "document"},
+        {"image_prompt": "p5", "visual_type": "landscape"},
+    ]
+    warnings = content_memory.check_visual_reuse(scenes)
+    assert any(w.get("type") == "visual_type_overload" for w in warnings)
+
+
+def test_evaluate_visual_diversity_report():
+    """evaluate_visual_diversity returns a structured report with score and distributions."""
+    scenes = [
+        {"image_prompt": "Roman forum", "visual_type": "location", "shot_type": "wide_shot"},
+        {"image_prompt": "Julius Caesar portrait", "visual_type": "person", "shot_type": "medium_shot"},
+        {"image_prompt": "Ancient coin detail", "visual_type": "artifact", "shot_type": "macro"},
+        {"image_prompt": "Senate building map", "visual_type": "map", "shot_type": "overhead"},
+    ]
+    report = content_memory.evaluate_visual_diversity(scenes)
+    assert report["diversity_score"] >= 0.80
+    assert report["is_acceptable"] is True
+    assert report["unique_visual_types_count"] == 4
+    assert report["unique_shot_types_count"] == 4
+    assert len(report["warnings"]) == 0
+
+
 # ---------------------------------------------------------------------------
 # Content-Aware Audio Selection
 # ---------------------------------------------------------------------------

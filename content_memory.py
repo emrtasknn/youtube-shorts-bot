@@ -422,8 +422,16 @@ def get_recently_used_audio(memory: list[dict], lookback: int = 3) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Visual Reuse Guard
+# Visual Reuse & Diversity Guard (Phase H)
 # ---------------------------------------------------------------------------
+
+def _get_scene_field(scene: dict, field_name: str, default: str = "") -> str:
+    """Retrieve a visual field from scene dict or nested visual_intent dict."""
+    val = scene.get(field_name)
+    if not val and isinstance(scene.get("visual_intent"), dict):
+        val = scene.get("visual_intent", {}).get(field_name)
+    return str(val or default).strip()
+
 
 def _normalize_prompt(prompt: str) -> str:
     """Normalize an image prompt for comparison."""
@@ -435,17 +443,25 @@ def _normalize_prompt(prompt: str) -> str:
 
 
 def check_visual_reuse(scenes: list[dict]) -> list[dict]:
-    """Check for visual/prompt reuse within a single video's scenes.
+    """Check for visual/prompt reuse and structural monotony within a video's scenes.
 
-    Returns a list of warnings for scenes with similar prompts.
+    Returns a list of warning dicts:
+    - prompt_similarity: high prompt word Jaccard similarity (> 0.65)
+    - consecutive_visual_type: 3+ consecutive scenes with identical visual_type
+    - consecutive_shot_type: 3+ consecutive scenes with identical shot_type
+    - visual_type_overload: single visual_type accounts for > 60% of all scenes
+    - primary_subject_overload: same primary_subject in > 50% of scenes
     """
     warnings = []
+    if not scenes:
+        return warnings
+
+    # 1. Prompt similarity check
     prompts = [s.get("image_prompt", "") for s in scenes]
     normalized = [_normalize_prompt(p) for p in prompts]
 
     for i in range(len(normalized)):
         for j in range(i + 1, len(normalized)):
-            # Simple word overlap check
             words_i = set(normalized[i].split())
             words_j = set(normalized[j].split())
             if not words_i or not words_j:
@@ -454,8 +470,9 @@ def check_visual_reuse(scenes: list[dict]) -> list[dict]:
             union = words_i | words_j
             jaccard = len(intersection) / len(union) if union else 0
 
-            if jaccard > 0.70:
+            if jaccard > 0.65:
                 warnings.append({
+                    "type": "prompt_similarity",
                     "scene_a": i + 1,
                     "scene_b": j + 1,
                     "similarity": round(jaccard, 2),
@@ -466,11 +483,156 @@ def check_visual_reuse(scenes: list[dict]) -> list[dict]:
                     i + 1, j + 1, jaccard,
                 )
 
+    # 2. Consecutive visual_type repetition (3 or more)
+    v_types = [_get_scene_field(s, "visual_type").lower() for s in scenes]
+    run_len = 1
+    for i in range(1, len(v_types)):
+        if v_types[i] and v_types[i] == v_types[i - 1]:
+            run_len += 1
+            if run_len >= 3 and (i == len(v_types) - 1 or (i < len(v_types) - 1 and v_types[i + 1] != v_types[i])):
+                scene_indices = list(range(i - run_len + 2, i + 2))
+                warnings.append({
+                    "type": "consecutive_visual_type",
+                    "visual_type": v_types[i],
+                    "scenes": scene_indices,
+                    "scene_a": scene_indices[0],
+                    "scene_b": scene_indices[-1],
+                    "count": run_len,
+                    "message": f"Visual type '{v_types[i]}' repeated in {run_len} consecutive scenes ({scene_indices})",
+                })
+                log.warning("Consecutive visual_type repetition: '%s' in scenes %s", v_types[i], scene_indices)
+        else:
+            run_len = 1
+
+    # 3. Consecutive shot_type repetition (3 or more)
+    s_types = [_get_scene_field(s, "shot_type").lower() for s in scenes]
+    run_len = 1
+    for i in range(1, len(s_types)):
+        if s_types[i] and s_types[i] == s_types[i - 1]:
+            run_len += 1
+            if run_len >= 3 and (i == len(s_types) - 1 or (i < len(s_types) - 1 and s_types[i + 1] != s_types[i])):
+                scene_indices = list(range(i - run_len + 2, i + 2))
+                warnings.append({
+                    "type": "consecutive_shot_type",
+                    "shot_type": s_types[i],
+                    "scenes": scene_indices,
+                    "scene_a": scene_indices[0],
+                    "scene_b": scene_indices[-1],
+                    "count": run_len,
+                    "message": f"Shot type '{s_types[i]}' repeated in {run_len} consecutive scenes ({scene_indices})",
+                })
+                log.warning("Consecutive shot_type repetition: '%s' in scenes %s", s_types[i], scene_indices)
+        else:
+            run_len = 1
+
+    # 4. Global visual_type overload (> 60% of all scenes when N >= 4)
+    if len(scenes) >= 4:
+        from collections import Counter
+        non_empty_types = [vt for vt in v_types if vt]
+        if non_empty_types:
+            type_counts = Counter(non_empty_types)
+            for vt, count in type_counts.items():
+                pct = count / len(scenes)
+                if pct > 0.60:
+                    warnings.append({
+                        "type": "visual_type_overload",
+                        "visual_type": vt,
+                        "count": count,
+                        "percentage": round(pct, 2),
+                        "message": f"Visual type '{vt}' dominates video ({count}/{len(scenes)} scenes, {pct:.0%})",
+                    })
+                    log.warning("Visual type overload: '%s' constitutes %.0f%% of scenes", vt, pct * 100)
+
+    # 5. Global primary_subject overload (> 50% of scenes when N >= 4)
+    subjects = [_get_scene_field(s, "primary_subject").lower() for s in scenes]
+    non_empty_subs = [sb for sb in subjects if sb and len(sb) > 2]
+    if len(scenes) >= 4 and non_empty_subs:
+        from collections import Counter
+        sub_counts = Counter(non_empty_subs)
+        for sb, count in sub_counts.items():
+            pct = count / len(scenes)
+            if pct > 0.50:
+                warnings.append({
+                    "type": "primary_subject_overload",
+                    "primary_subject": sb,
+                    "count": count,
+                    "percentage": round(pct, 2),
+                    "message": f"Primary subject '{sb}' repeated in {count}/{len(scenes)} scenes ({pct:.0%})",
+                })
+                log.warning("Primary subject overload: '%s' in %.0f%% of scenes", sb, pct * 100)
+
     return warnings
 
 
+def evaluate_visual_diversity(scenes: list[dict]) -> dict:
+    """Evaluate visual diversity across all scenes of a video.
+
+    Returns a dict with:
+    - diversity_score: float 0.0-1.0
+    - type_distribution: dict of visual_type counts
+    - shot_distribution: dict of shot_type counts
+    - unique_visual_types_count: int
+    - unique_shot_types_count: int
+    - warnings: list of warnings from check_visual_reuse()
+    - is_acceptable: bool
+    """
+    if not scenes:
+        return {
+            "diversity_score": 1.0,
+            "type_distribution": {},
+            "shot_distribution": {},
+            "unique_visual_types_count": 0,
+            "unique_shot_types_count": 0,
+            "warnings": [],
+            "is_acceptable": True,
+        }
+
+    from collections import Counter
+    v_types = [_get_scene_field(s, "visual_type").lower() for s in scenes]
+    s_types = [_get_scene_field(s, "shot_type").lower() for s in scenes]
+
+    type_counts = dict(Counter([vt for vt in v_types if vt]))
+    shot_counts = dict(Counter([st for st in s_types if st]))
+
+    warnings = check_visual_reuse(scenes)
+
+    score = 1.0
+
+    for w in warnings:
+        w_type = w.get("type", "prompt_similarity")
+        if w_type == "prompt_similarity":
+            score -= 0.15
+        elif w_type == "consecutive_visual_type":
+            score -= 0.20
+        elif w_type == "consecutive_shot_type":
+            score -= 0.10
+        elif w_type == "visual_type_overload":
+            score -= 0.20
+        elif w_type == "primary_subject_overload":
+            score -= 0.15
+
+    if len(type_counts) >= 3:
+        score += 0.05
+    if len(shot_counts) >= 3:
+        score += 0.05
+
+    score = max(0.0, min(1.0, round(score, 2)))
+
+    is_acceptable = score >= 0.50 and not any(w.get("type") == "visual_type_overload" for w in warnings)
+
+    return {
+        "diversity_score": score,
+        "type_distribution": type_counts,
+        "shot_distribution": shot_counts,
+        "unique_visual_types_count": len(type_counts),
+        "unique_shot_types_count": len(shot_counts),
+        "warnings": warnings,
+        "is_acceptable": is_acceptable,
+    }
+
+
 def diversify_image_prompts(scenes: list[dict]) -> list[dict]:
-    """Add variation cues to scenes with overly similar image prompts.
+    """Add variation cues to scenes with prompt similarity or framing monotony.
 
     Modifies scenes in-place and returns the modified list.
     """
@@ -490,15 +652,35 @@ def diversify_image_prompts(scenes: list[dict]) -> list[dict]:
 
     modified_indices = set()
     for w in warnings:
-        idx_b = w["scene_b"] - 1  # Modify the later scene
-        if idx_b not in modified_indices and idx_b < len(scenes):
-            suffix = variation_suffixes[idx_b % len(variation_suffixes)]
-            scenes[idx_b]["image_prompt"] = scenes[idx_b]["image_prompt"].rstrip(",. ") + suffix
+        w_type = w.get("type", "prompt_similarity")
+        
+        idx_b = w.get("scene_b", 2) - 1
+        if idx_b in modified_indices or idx_b >= len(scenes):
+            continue
+
+        scene = scenes[idx_b]
+        suffix = variation_suffixes[idx_b % len(variation_suffixes)]
+
+        if w_type == "prompt_similarity":
+            scene["image_prompt"] = scene.get("image_prompt", "").rstrip(",. ") + suffix
             modified_indices.add(idx_b)
-            log.info(
-                "Diversified image prompt for Scene %d to reduce visual reuse",
-                idx_b + 1,
-            )
+            log.info("Diversified image prompt for Scene %d (prompt similarity)", idx_b + 1)
+
+        elif w_type == "consecutive_visual_type":
+            scene["image_prompt"] = scene.get("image_prompt", "").rstrip(",. ") + f", distinct visual framing style ({suffix.lstrip(', ')})"
+            modified_indices.add(idx_b)
+            log.info("Diversified visual_type repetition for Scene %d", idx_b + 1)
+
+        elif w_type == "consecutive_shot_type":
+            alt_shots = ["wide establishing shot", "macro detail shot", "high overhead angle", "low tilt-up shot"]
+            alt = alt_shots[idx_b % len(alt_shots)]
+            scene["image_prompt"] = scene.get("image_prompt", "").rstrip(",. ") + f", {alt}"
+            modified_indices.add(idx_b)
+            log.info("Diversified shot_type repetition for Scene %d with '%s'", idx_b + 1, alt)
+
+        elif w_type in ("visual_type_overload", "primary_subject_overload"):
+            scene["image_prompt"] = scene.get("image_prompt", "").rstrip(",. ") + suffix
+            modified_indices.add(idx_b)
 
     return scenes
 
