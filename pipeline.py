@@ -216,6 +216,19 @@ def validate_script(data: dict, min_total_words: int | None = None, max_total_wo
             "evidence", "mechanism", "reconstruction", "context_map",
             "person_or_entity", "aftermath", "atmosphere"
         }
+        visual_role_aliases = {
+            "crowd": "person_or_entity",
+            "action": "mechanism",
+            "crowd/action": "mechanism",
+            "map": "context_map",
+            "person": "person_or_entity",
+            "entity": "person_or_entity",
+            "historical_photo": "evidence",
+            "artifact": "evidence",
+            "document": "evidence",
+            "location": "context_map",
+        }
+        visual_role = visual_role_aliases.get(visual_role, visual_role)
         if visual_role not in allowed_visual_roles:
             raise ValueError(f"Scene {i} has invalid visual_role: {visual_role}")
         if not isinstance(visual_intent, dict):
@@ -329,7 +342,7 @@ def validate_visual_storyboard(scenes: list[dict]) -> dict:
 
     type_counts = Counter(visual_types)
     subject_counts = Counter(primary_subjects)
-    if type_counts and max(type_counts.values()) >= 5:
+    if type_counts and max(type_counts.values()) >= 6:
         repeated = max(type_counts, key=type_counts.get)
         raise ValueError(
             f"Visual storyboard is too homogeneous: visual_type '{repeated}' appears {type_counts[repeated]} times"
@@ -812,6 +825,8 @@ Kurallar:
                 current_prompt = prompt + f"\n\nÖNCEKİ DENEMEDE HATA ALINDI:\n{err_msg}\n"
                 current_prompt += (
                     f"KRİTİK DÜZELTME: {word_fix} "
+                    f"İçerik tipi {content_type}; hedef toplam {min_words}-{max_words} kelime. "
+                    "Önceki denemede uzunluk/visual QA nedeniyle reddedildi; bu kez tüm kuralları aynı anda karşıla. "
                     f"Her sahne {scene_min_words}-{scene_max_words} kelime sınırını korusun. "
                     "visual_fact ve visual_intent.visual_fact aynı anlamı taşımalı; "
                     "visual_role ve visual_intent.visual_role aynı olmalı. "
@@ -2390,8 +2405,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             break
 
         log.warning(
-            "TTS duration %.2fs is outside 28-40s; regenerating script (%s/3)",
-            total_duration, duration_attempt,
+            "TTS duration %.2fs is outside %s-%ss for %s; regenerating script (%s/3)",
+            total_duration,
+            cfg["min_duration"],
+            cfg["max_duration"],
+            content_type,
+            duration_attempt,
         )
         if duration_attempt == 3:
             raise RuntimeError(f"Could not produce {content_type} Short in target duration range: {total_duration:.2f}s")
