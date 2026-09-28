@@ -274,6 +274,13 @@ export default {
 `);
       }
 
+      if (request.method === "GET" && url.pathname === "/tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD") {
+        return new Response("tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD", {
+          status: 200,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+      }
+
       if (request.method === "GET" && url.pathname === "/terms") {
         return legalPage("Terms of Service", `
 <p><strong>Son güncelleme:</strong> 28 Eylül 2026</p>
