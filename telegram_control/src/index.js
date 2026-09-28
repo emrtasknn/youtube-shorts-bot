@@ -276,6 +276,19 @@ export default {
 
       if (
         (request.method === "GET" || request.method === "HEAD") &&
+        url.pathname === "/tiktok1uhsfoXkPy9abNfuJa6DFFOYdCVndMN8.txt"
+      ) {
+        return new Response("tiktok-developers-site-verification=1uhsfoXkPy9abNfuJa6DFFOYdCVndMN8", {
+          status: 200,
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        });
+      }
+
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
         url.pathname === "/tiktok-developers-site-verification.txt"
       ) {
         return new Response("tiktok-developers-site-verification=1uhsfoXkPy9abNfuJa6DFFOYdCVndMN8", {
