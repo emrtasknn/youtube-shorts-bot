@@ -1016,5 +1016,41 @@
     "created_at": "2026-09-28T11:11:02",
     "status": "used",
     "completed_at": "2026-09-28T11:23:43"
+  },
+  {
+    "event_id": "evt_c5c4d69aa14c",
+    "canonical_title": "1814 Londra Bira Seli",
+    "aliases": [
+      "London Beer Flood"
+    ],
+    "date": "17 Ekim 1814",
+    "date_normalized": "1814-10-17",
+    "location": "St. Giles, Londra, İngiltere",
+    "entities": [
+      "Meux and Company Brewery",
+      "George Street",
+      "St. Giles bölgesi"
+    ],
+    "event_summary": "Londra'daki Meux and Company Bira Fabrikası'nda devasa bir fıçının patlaması sonucu, yaklaşık 1,5 milyon litre biranın sokaklara sele dönüşerek yayılması ve çevredeki zayıf yapılı evleri yıkarak 8 kişinin ölümüne yol açması olayıdır.",
+    "core_facts": [
+      "17 Ekim 1814 tarihinde Meux and Company Bira Fabrikası'nda 6 metreden uzun devasa bir fıçı patladı.",
+      "Yaklaşık 1,5 milyon litre bira, St. Giles bölgesi sokaklarına dökülerek bir yıkım dalgası oluşturdu.",
+      "Olay sonucunda, çoğu aynı evde yaşayan 8 kişi hayatını kaybetti.",
+      "Mahkeme jürisi, olayı 'Tanrı'nın bir eylemi' (kaza) olarak sınıflandırarak fabrika sahiplerini yasal sorumluluktan muaf tuttu.",
+      "Bira selinden kaynaklanan basınç, bölgedeki zayıf yapıdaki konutların duvarlarını yıktı."
+    ],
+    "claims": [
+      "Olay sonrası çevredeki insanların sokaklara dökülerek biraları kaplarla toplamaya çalıştığına dair anlatıların doğruluğu (birincil kaynaklarda bu durumun bir hayatta kalma çabası mı yoksa sadece fırsatçılık mı olduğu tam netleşmemiştir).",
+      "Fıçının patlamasına kesin olarak neyin sebep olduğu (fiziksel yorgunluk mu yoksa yetersiz bakım mı olduğu konusu o dönemki bilirkişi raporlarında teknik bir tartışma konusuydu)."
+    ],
+    "sources": [
+      "The Times (1814 Gazete Arşivleri)",
+      "Coroners' Inquest Records of 1814",
+      "British History Online - St. Giles Parish Reports"
+    ],
+    "first_video_id": "run_20260928_113840",
+    "created_at": "2026-09-28T11:38:47",
+    "status": "used",
+    "completed_at": "2026-09-28T11:48:24"
   }
 ]
