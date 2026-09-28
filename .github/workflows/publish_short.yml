@@ -144,6 +144,54 @@ jobs:
           print(json.dumps(result, ensure_ascii=False))
           PY
 
+      - name: Get TikTok access token
+        id: tiktok_token
+        env:
+          CONTROL_API_URL: ${{ secrets.CONTROL_API_URL }}
+          CONTROL_API_SECRET: ${{ secrets.CONTROL_API_SECRET }}
+        run: |
+          set -euo pipefail
+          RESPONSE="$(curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Control-Secret: ${CONTROL_API_SECRET}" \
+            "${CONTROL_API_URL%/}/tiktok/access-token")"
+          python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("access_token"), d; print("access_token="+d["access_token"])' <<<"${RESPONSE}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to TikTok
+        id: tiktok_upload
+        env:
+          TIKTOK_ACCESS_TOKEN: ${{ steps.tiktok_token.outputs.access_token }}
+          VIDEO: ${{ steps.locate.outputs.video }}
+          METADATA: ${{ steps.locate.outputs.metadata }}
+          TIKTOK_TITLE: ${{ inputs.youtube_title }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          import tiktok_uploader
+
+          video = Path(os.environ["VIDEO"])
+          metadata = json.loads(Path(os.environ["METADATA"]).read_text(encoding="utf-8"))
+          title = str(os.environ.get("TIKTOK_TITLE", "")).strip()
+          if not title:
+              title = str(metadata.get("youtube_title", "")).strip()
+
+          topic = {
+              "title": title,
+              "youtube_title": title,
+              "tiktok_caption": title,
+          }
+          result = tiktok_uploader.publish_tiktok_video(
+              video_path=video,
+              topic=topic,
+              is_aigc=True,
+          )
+          Path("tiktok_publish_result.json").write_text(
+              json.dumps(result, ensure_ascii=False),
+              encoding="utf-8",
+          )
+          print(json.dumps(result, ensure_ascii=False))
+
       - name: Notify Telegram control service
         if: always()
         env:
@@ -167,6 +215,19 @@ jobs:
               })
           else:
               payload["error"] = "YouTube upload workflow failed before producing publish_result.json"
+
+          tiktok_path = "tiktok_publish_result.json"
+          if os.path.exists(tiktok_path):
+              data = json.loads(open(tiktok_path, encoding="utf-8").read())
+              payload.update({
+                  "tiktok_url": data.get("url", ""),
+                  "tiktok_publish_id": data.get("publish_id", ""),
+                  "tiktok_post_id": data.get("post_id"),
+                  "tiktok_status": data.get("status", ""),
+                  "tiktok_fail_reason": data.get("fail_reason", ""),
+              })
+          elif not payload.get("error"):
+              payload["tiktok_error"] = "TikTok upload workflow failed before producing tiktok_publish_result.json"
 
           req = urllib.request.Request(
               os.environ["CONTROL_API_URL"].rstrip("/") + "/publish-result",
