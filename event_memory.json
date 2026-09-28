@@ -980,5 +980,41 @@
     "created_at": "2026-09-28T08:04:41",
     "status": "used",
     "completed_at": "2026-09-28T08:16:40"
+  },
+  {
+    "event_id": "evt_53e2338c394d",
+    "canonical_title": "Sened-i İttifak",
+    "aliases": [
+      "II. Mahmut ve Ayanlar Arasındaki Belge",
+      "Türk Tarihinin İlk Anayasal Belgesi"
+    ],
+    "date": "1808",
+    "date_normalized": "1808-09-29",
+    "location": "İstanbul",
+    "entities": [
+      "II. Mahmut",
+      "Alemdar Mustafa Paşa",
+      "Ayanlar"
+    ],
+    "event_summary": "Sened-i İttifak, Osmanlı Devleti'nde merkezi otoritenin zayıfladığı bir dönemde, II. Mahmut ile ayanlar arasında imzalanan, merkezi otoritenin ayanların varlığını ilk kez resmen tanıdığı ancak ayanların da devletin emirlerine uyacağını taahhüt ettiği sözleşmedir.",
+    "core_facts": [
+      "Sened-i İttifak 1808 yılında II. Mahmut'un saltanatının başında imzalanmıştır.",
+      "Belge, Osmanlı merkez yönetimi ile taşra ayanları arasındaki ilişkileri düzenleyen ilk resmi metindir.",
+      "Alemdar Mustafa Paşa, devlet adamları ve ayanlar arasında arabulucu rolü üstlenmiştir.",
+      "Ayanlar, padişahın otoritesini tanımayı ve devletin emirlerine uymayı yazılı olarak taahhüt etmişlerdir.",
+      "Belge, padişahın mutlak yetkilerini kendi iradesiyle sınırlandırdığı ilk Osmanlı metni olarak kabul edilir."
+    ],
+    "claims": [
+      "Belgenin Magna Carta ile kıyaslanıp kıyaslanamayacağı konusu tarihçiler arasında tartışmalıdır.",
+      "Sened-i İttifak'ın II. Mahmut tarafından gönüllü mü yoksa mecburiyetten mi imzalandığı konusu tam bir mutabakat içermez."
+    ],
+    "sources": [
+      "Enver Ziya Karal, Osmanlı Tarihi V. Cilt",
+      "Halil İnalcık, Sened-i İttifak ve Gülhane Hatt-ı Hümayunu"
+    ],
+    "first_video_id": "run_20260928_111050",
+    "created_at": "2026-09-28T11:11:02",
+    "status": "used",
+    "completed_at": "2026-09-28T11:23:43"
   }
 ]
