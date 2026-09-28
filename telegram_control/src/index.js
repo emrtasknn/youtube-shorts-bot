@@ -274,10 +274,16 @@ export default {
 `);
       }
 
-      if (request.method === "GET" && url.pathname === "/tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD") {
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        url.pathname === "/tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD"
+      ) {
         return new Response("tiktok-developers-site-verification=4MvDiqWr1SUXQ4mkhoqrBzA5Z8jo97wD", {
           status: 200,
-          headers: { "content-type": "text/plain; charset=utf-8" },
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": "no-store",
+          },
         });
       }
 
