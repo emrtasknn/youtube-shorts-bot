@@ -22,6 +22,7 @@ from moviepy import (
     ImageClip,
     TextClip,
     VideoFileClip,
+    concatenate_audioclips,
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
