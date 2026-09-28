@@ -653,8 +653,12 @@ def generate_viral_script(candidate: dict, research_dossier: dict, content_type:
     target_duration = cfg["target_duration"]
     min_words = cfg["min_words"]
     max_words = cfg["max_words"]
-    scene_min_words = 6
-    scene_max_words = 18 if content_type == "TODAY_IN_HISTORY" else 14
+    # TODAY_IN_HISTORY must reliably clear the 45s floor. A 90-word total is
+    # technically valid but can still produce ~43s with the current Turkish TTS.
+    # Use a stronger per-scene floor so the generated script lands around 105+
+    # words without relying on Gemini to hit the total-word target by itself.
+    scene_min_words = 15 if content_type == "TODAY_IN_HISTORY" else 6
+    scene_max_words = 20 if content_type == "TODAY_IN_HISTORY" else 14
     style_instruction = {
         "TODAY_IN_HISTORY": "Bu özel seri 45-75 saniyelik mini tarih hikâyesidir. Olayı sadece özetleme; bağlam, mekanizma, şaşırtıcı ayrıntı ve sonuç arasında akıcı bir hikâye kur.",
         "AYT_HISTORY": "Bu eğitim serisidir. Bilgiyi ezberlenebilir karşılaştırma, kronoloji veya kısa sınav ipucuyla anlat; gereksiz dramatizasyon yapma.",
@@ -680,11 +684,11 @@ EFSANELER / SPEKÜLASYONLAR:
 Bu olayı tam {SCENE_COUNT} sahnelik bir Shorts senaryosu olarak yaz.
 İçerik tipi: {content_type}
 Hedef seslendirme süresi yaklaşık {target_duration} saniye; toplam {min_words}-{max_words} kelime.
-AMAÇ: toplam narration {min_words}-{max_words} kelime aralığında kalmalı. Her sahne {scene_min_words}-{scene_max_words} kelime olsun.
+AMAÇ: toplam narration {min_words}-{max_words} kelime aralığında kalmalı. {("TODAY_IN_HISTORY" == content_type ? "Bu seri için pratik hedef 105-130 kelimedir; 100 kelimenin altına kesinlikle inme." : "")} Her sahne {scene_min_words}-{scene_max_words} kelime olsun.
 Öncelik doğal Türkçe ve bilgi yoğunluğudur. {style_instruction}
 
 Sahne Hikaye Şablonu:
-- 1. Sahne: COLD OPEN - 6-10 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
+- 1. Sahne: COLD OPEN - 15-20 kelime. Başlığı veya yalnızca tarihi tekrar etme. İlk cümle doğrudan şaşırtıcı sonuç, devasa ölçek, imkânsız görünen durum veya güçlü bir soru ile başlamalı; "1814 yılında..." gibi pasif tarih girişi kullanma.
 - 2. Sahne: CONTEXT - İzleyicinin olayı anlaması için gereken minimum bilgi.
 - 3. Sahne: ESCALATION - Yeni bir bilgi, sayı, tehdit veya çelişki getir. Önceki sahneyi farklı kelimelerle tekrar etme.
 - 4. Sahne: UNEXPECTED FACT - Hikâyenin yönünü değiştiren veya merakı artıran yeni gerçek.
