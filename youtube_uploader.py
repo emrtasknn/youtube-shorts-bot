@@ -276,9 +276,11 @@ def upload_shorts_video(
     playlist_result = {"status": "skipped", "playlist_id": playlist_id}
     if playlist_id:
         try:
-            # playlistItems.insert requires the broader YouTube account scope.
+            # playlistItems.insert requires a playlist-management OAuth scope
+            # such as https://www.googleapis.com/auth/youtube.
             if not hasattr(client, "playlistItems"):
                 raise RuntimeError("YouTube client does not expose playlistItems")
+
             item = client.playlistItems().insert(
                 part="snippet",
                 body={
@@ -291,22 +293,61 @@ def upload_shorts_video(
                     }
                 },
             ).execute()
+
+            returned_playlist_id = (
+                (item.get("snippet") or {}).get("playlistId") or ""
+            )
+            returned_video_id = (
+                (item.get("snippet") or {}).get("resourceId", {}).get("videoId") or ""
+            )
+            if returned_playlist_id != playlist_id or returned_video_id != video_id:
+                raise RuntimeError(
+                    "YouTube returned an unexpected playlist item: "
+                    f"playlist={returned_playlist_id!r}, video={returned_video_id!r}"
+                )
+
             playlist_result = {
                 "status": "added",
                 "playlist_id": playlist_id,
                 "playlist_item_id": item.get("id", ""),
             }
-            log.info("Added video %s to playlist %s", video_id, playlist_id)
+            log.info(
+                "Added video %s to playlist %s (playlist_item=%s)",
+                video_id,
+                playlist_id,
+                item.get("id", ""),
+            )
         except Exception as exc:
-            # Never turn a successful YouTube upload into a failed publish just
-            # because a playlist is not configured or the OAuth token lacks the
-            # broader playlist-management scope.
-            playlist_result = {
-                "status": "failed",
-                "playlist_id": playlist_id,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-            log.warning("Playlist insertion failed for %s: %s", video_id, exc)
+            error_text = f"{type(exc).__name__}: {exc}"
+            # YouTube reports a duplicate with a 400 duplicate/videoAlreadyInPlaylist
+            # error. Treat that as success because the desired final state is already
+            # achieved.
+            if "videoAlreadyInPlaylist" in error_text:
+                playlist_result = {
+                    "status": "already_added",
+                    "playlist_id": playlist_id,
+                    "error": error_text,
+                }
+                log.info(
+                    "Video %s is already in playlist %s",
+                    video_id,
+                    playlist_id,
+                )
+            else:
+                # Never turn a successful YouTube upload into a failed publish just
+                # because playlist insertion failed. The Telegram result will expose
+                # the playlist-specific failure separately.
+                playlist_result = {
+                    "status": "failed",
+                    "playlist_id": playlist_id,
+                    "error": error_text,
+                }
+                log.warning(
+                    "Playlist insertion failed for video %s / playlist %s: %s",
+                    video_id,
+                    playlist_id,
+                    exc,
+                )
 
     return {
         "video_id": video_id,
