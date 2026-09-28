@@ -106,18 +106,33 @@ def build_ai_prompt(
         parts.append(historical)
 
     # ── 10. Directorial instructions ──────────────────────────────────────────
-    parts.append(
-        "Depict the historical ACTION and relationship first, not an isolated object. "
-        "The frame must communicate who/what is doing what, where, and in what historical context. "
-        "Do not substitute a generic landscape, generic portrait, keyword collage, isolated prop, "
-        "or stock-photo composition. Respect the requested shot type and composition."
-    )
+    if visual_role == "event_reconstruction":
+        parts.append(
+            "This is an EVENT RECONSTRUCTION. Show the concrete event happening in the frame: "
+            "who is doing what, what object interacts with what, and the immediate consequence. "
+            "Do not replace the event with a portrait, symbolic animal, empty landscape, sunset, "
+            "dramatic sky, or isolated prop. The event itself is the subject."
+        )
+    elif visual_role == "aftermath":
+        parts.append(
+            "This is an AFTERMATH / CONSEQUENCE shot. Show the concrete result of the narrated event, "
+            "not a generic mood image. The viewer should be able to infer what happened from the frame."
+        )
+    else:
+        parts.append(
+            "Depict the historical ACTION and relationship first, not an isolated object. "
+            "The frame must communicate who/what is doing what, where, and in what historical context. "
+            "Do not substitute a generic landscape, generic portrait, keyword collage, isolated prop, "
+            "or stock-photo composition. Respect the requested shot type and composition."
+        )
 
     # ── 11. Technical + negative constraints ──────────────────────────────────
     parts.append(
         "Vertical 9:16 composition. "
         "No modern objects, no contemporary clothing, no anachronisms. "
-        "No text overlays, no watermarks, no borders. "
+        "NO visible text, letters, captions, subtitles, title cards, posters, thumbnails, "
+        "watermarks, logos, borders, or UI elements inside the image. "
+        "Create a clean editorial image with no typography. "
         "Documentary historical reconstruction style. Photorealistic, cinematic."
     )
 
