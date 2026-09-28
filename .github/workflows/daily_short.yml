@@ -34,7 +34,7 @@ on:
         default: ""
         type: string
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '0 8 * * *'
       timezone: 'Europe/Istanbul'
 
 permissions:
