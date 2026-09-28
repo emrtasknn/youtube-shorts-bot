@@ -14,6 +14,58 @@ import pipeline
 import youtube_uploader
 
 
+def _visual_qa_scene(role="evidence", specificity=0.85, density=0.80):
+    return {
+        "visual_fact": "Belirli bir tarihsel gerçek",
+        "visual_role": role,
+        "event_specificity": specificity,
+        "information_density": density,
+        "visual_intent": {
+            "primary_subject": "Tarihi belge",
+            "must_show": ["eski yazı", "mühür"],
+        },
+    }
+
+
+def _ai_visual_source():
+    return {"source_type": "ai_reconstruction"}
+
+
+def test_visual_qa_allows_two_atmosphere_scenes_with_warning():
+    scenes = [_visual_qa_scene() for _ in range(5)] + [
+        _visual_qa_scene(role="atmosphere", specificity=0.20, density=0.20),
+        _visual_qa_scene(role="atmosphere", specificity=0.20, density=0.20),
+    ]
+    qa = pipeline.validate_visual_sources([_ai_visual_source() for _ in scenes], scenes)
+    assert qa["passed"] is True
+    assert qa["decision"] == "PASS_WITH_WARNINGS"
+    assert qa["atmosphere_scenes"] == 2
+    assert len(qa["warnings"]) == 1
+
+
+def test_visual_qa_rejects_four_atmosphere_scenes():
+    scenes = [_visual_qa_scene() for _ in range(3)] + [
+        _visual_qa_scene(role="atmosphere", specificity=0.20, density=0.20)
+        for _ in range(4)
+    ]
+    try:
+        pipeline.validate_visual_sources([_ai_visual_source() for _ in scenes], scenes)
+    except ValueError as exc:
+        assert "too many atmosphere-only scenes (4)" in str(exc)
+    else:
+        raise AssertionError("Expected Visual QA to reject four atmosphere scenes")
+
+
+def test_visual_qa_rejects_low_factual_scene_quality():
+    scenes = [_visual_qa_scene(specificity=0.70, density=0.0) for _ in range(7)]
+    try:
+        pipeline.validate_visual_sources([_ai_visual_source() for _ in scenes], scenes)
+    except ValueError as exc:
+        assert "factual-scene quality score" in str(exc)
+    else:
+        raise AssertionError("Expected Visual QA to reject low-quality factual scenes")
+
+
 
 
 def test_validate_script_accepts_expected_shape():

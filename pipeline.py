@@ -73,6 +73,12 @@ WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
 REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
+# Atmosphere shots are useful as transitions, but should never replace the
+# factual core of a short. Two or three are reviewable warnings; four or more
+# indicate that the storyboard is no longer carrying enough event detail.
+ATMOSPHERE_WARNING_THRESHOLD = int(os.getenv("ATMOSPHERE_WARNING_THRESHOLD", "2"))
+MAX_ATMOSPHERE_SCENES = int(os.getenv("MAX_ATMOSPHERE_SCENES", "3"))
+MIN_VISUAL_QA_QUALITY_SCORE = float(os.getenv("MIN_VISUAL_QA_QUALITY_SCORE", "0.60"))
 
 # AI-driven sound effects. Gemini chooses semantic cues; the renderer maps
 # them to locally downloaded, licensed SFX files. Missing assets never break rendering.
@@ -2174,7 +2180,13 @@ def validate_video_quality(video_path: Path, min_duration: float | None = None, 
 
 
 def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_relevance: float = 0.55) -> dict:
-    """Final deterministic gate for source metadata and visual planning quality."""
+    """Final deterministic gate for source metadata and visual planning quality.
+
+    Atmosphere scenes are tolerated in small numbers so hard-to-source events
+    can use AI reconstructions without being rejected solely for two contextual
+    shots. Their use is still visible in metadata and constrained by the
+    factual-scene quality score below.
+    """
     if len(visual_sources) != len(scenes):
         raise ValueError(f"Visual QA failed: {len(visual_sources)} sources for {len(scenes)} scenes")
 
@@ -2238,15 +2250,54 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
             raise ValueError(f"Visual QA failed: scene {idx} has unsupported source type '{source_type}'")
 
     atmosphere_count = sum(1 for scene in results if scene.get("visual_role") == "atmosphere")
-    if atmosphere_count > 1:
-        raise ValueError(f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); maximum is 1")
+    if atmosphere_count > MAX_ATMOSPHERE_SCENES:
+        raise ValueError(
+            f"Visual QA failed: too many atmosphere-only scenes ({atmosphere_count}); "
+            f"maximum is {MAX_ATMOSPHERE_SCENES}"
+        )
+
+    factual_scenes = [scene for scene in results if scene.get("visual_role") != "atmosphere"]
+    if not factual_scenes:
+        raise ValueError("Visual QA failed: no factual scenes available for quality evaluation")
+
+    # Score only factual scenes. Atmosphere is deliberately low-information, so
+    # including it here would turn the permitted warning path into a hidden
+    # failure for otherwise strong storyboards.
+    factual_quality_scores = []
+    for scene in factual_scenes:
+        observed_source_quality = (
+            scene["relevance_score"]
+            if scene["source_type"] in ("wikimedia", "openverse")
+            else scene["planned_event_specificity"]
+        )
+        factual_quality_scores.append(
+            0.45 * scene["planned_event_specificity"]
+            + 0.35 * scene["planned_information_density"]
+            + 0.20 * observed_source_quality
+        )
+    total_quality_score = sum(factual_quality_scores) / len(factual_quality_scores)
+    if total_quality_score < MIN_VISUAL_QA_QUALITY_SCORE:
+        raise ValueError(
+            f"Visual QA failed: factual-scene quality score {total_quality_score:.2f} "
+            f"is below threshold {MIN_VISUAL_QA_QUALITY_SCORE:.2f}"
+        )
+
+    warnings = []
+    if atmosphere_count >= ATMOSPHERE_WARNING_THRESHOLD:
+        warnings.append(
+            f"{atmosphere_count} atmosphere-only scenes accepted; factual-scene quality score "
+            f"is {total_quality_score:.2f}"
+        )
 
     return {
         "passed": True,
+        "decision": "PASS_WITH_WARNINGS" if warnings else "PASS",
         "scene_count": len(results),
         "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
         "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
         "atmosphere_scenes": atmosphere_count,
+        "factual_scene_quality_score": round(total_quality_score, 3),
+        "warnings": warnings,
         "scenes": results,
     }
 
@@ -2540,9 +2591,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     
     visual_qa = validate_visual_sources(visual_sources, scenes, min_relevance=REAL_VISUAL_MIN_RELEVANCE)
     log.info(
-        "Visual QA passed: %d real visuals, %d AI reconstructions",
+        "Visual QA %s: %d real visuals, %d AI reconstructions, quality=%.2f, warnings=%d",
+        visual_qa["decision"],
         visual_qa["real_visuals"],
         visual_qa["ai_reconstructions"],
+        visual_qa["factual_scene_quality_score"],
+        len(visual_qa["warnings"]),
     )
 
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
