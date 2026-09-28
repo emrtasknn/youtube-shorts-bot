@@ -905,5 +905,43 @@
     "created_at": "2026-09-27T17:53:22",
     "status": "used",
     "completed_at": "2026-09-27T18:07:04"
+  },
+  {
+    "event_id": "evt_0bd210756187",
+    "canonical_title": "Preveze Deniz Zaferi",
+    "aliases": [
+      "Preveze Deniz Muharebesi",
+      "Preveze Savaşı"
+    ],
+    "date": "28 Eylül 1538",
+    "date_normalized": "1538-09-28",
+    "location": "Preveze, Yunanistan",
+    "entities": [
+      "Barbaros Hayreddin Paşa",
+      "Andrea Doria",
+      "Osmanlı İmparatorluğu",
+      "Kutsal İttifak"
+    ],
+    "event_summary": "Osmanlı Donanması ile Papa III. Paulus'un öncülüğünde kurulan, Andrea Doria komutasındaki Haçlı donanması arasında gerçekleşen büyük bir deniz savaşıdır. Barbaros Hayreddin Paşa'nın stratejik dehası sayesinde, sayıca çok daha üstün olan Haçlı donanması ağır bir yenilgiye uğratılmış ve Akdeniz'de Osmanlı hakimiyeti perçinlenmiştir.",
+    "core_facts": [
+      "Savaş 28 Eylül 1538 tarihinde Preveze körfezi açıklarında gerçekleşmiştir.",
+      "Osmanlı Donanması Barbaros Hayreddin Paşa tarafından, Haçlı donanması ise Andrea Doria tarafından komuta edilmiştir.",
+      "Haçlı donanması; Papa, Venedik Cumhuriyeti, İspanya İmparatorluğu, Ceneviz Cumhuriyeti ve Malta Şövalyeleri'nin birleşik kuvvetlerinden oluşuyordu.",
+      "Sayıca üstün olan Haçlı donanması, Osmanlı taktikleri karşısında ağır kayıplar vererek geri çekilmek zorunda kalmıştır.",
+      "Bu zafer, Akdeniz'deki Osmanlı üstünlüğünü tartışmasız hale getirmiş ve bölgenin uzun süre bir 'Türk Gölü' olarak anılmasını sağlamıştır."
+    ],
+    "claims": [
+      "Haçlı donanmasındaki gemi sayısı ve personel mevcuduna dair kaynaklardaki rakamların abartılı veya eksik olduğu konusu tarihçiler arasında tartışmalıdır.",
+      "Andrea Doria'nın savaş sırasında geri çekilme kararının stratejik bir zorunluluk mu yoksa kasıtlı bir ihmal mi olduğu konusu hala tarihçiler arasında bir tartışma konusudur."
+    ],
+    "sources": [
+      "İsmail Hakkı Uzunçarşılı, Osmanlı Tarihi II. Cilt",
+      "Joseph von Hammer, Büyük Osmanlı Tarihi",
+      "Barbaros Hayreddin Paşa'nın Gazavat-ı Hayreddin Paşa adlı hatıratı"
+    ],
+    "first_video_id": "run_20260928_061019",
+    "created_at": "2026-09-28T06:10:41",
+    "status": "used",
+    "completed_at": "2026-09-28T06:21:37"
   }
 ]
