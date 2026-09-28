@@ -943,5 +943,42 @@
     "created_at": "2026-09-28T06:10:41",
     "status": "used",
     "completed_at": "2026-09-28T06:21:37"
+  },
+  {
+    "event_id": "evt_659d0e6a0646",
+    "canonical_title": "28 Eylül 1066: Norman İstilası'nın Başlangıcı",
+    "aliases": [
+      "William'ın İngiltere Çıkarması",
+      "Hastings Muharebesi Öncesi"
+    ],
+    "date": "28 Eylül 1066",
+    "date_normalized": "1066-09-28",
+    "location": "Pevensey, İngiltere",
+    "entities": [
+      "Fatih William",
+      "İngiltere Kralı Harold Godwinson",
+      "Normanlar"
+    ],
+    "event_summary": "Normandiya Dükü William, İngiltere tahtında hak iddia ederek tarihin akışını değiştiren Norman İstilası'nı başlatmak üzere 28 Eylül 1066 tarihinde Pevensey kıyılarına ayak bastı. Bu çıkarma, İngiliz tarihinin en büyük kırılma noktalarından biri olan ve 14 Ekim'de gerçekleşecek Hastings Muharebesi ile sonuçlanacak olan sürecin ilk somut adımıydı.",
+    "core_facts": [
+      "Normandiya Dükü William, 28 Eylül 1066'da Pevensey kıyılarına ayak basmıştır.",
+      "İngiltere Kralı Harold Godwinson, William'ın çıkarma yaptığı sırada kuzeyde Harald Hardrada'nın Norveç ordusuyla meşguldür.",
+      "Norman filosu, elverişsiz rüzgarlar nedeniyle başlangıçta planlanandan daha geç bir tarihte yola çıkmıştır.",
+      "William'ın ordusu, İngiltere'nin güney kıyısında o dönemde ciddi bir direnişle karşılaşmadan karaya çıkmıştır.",
+      "Bu sefer, İngiltere'nin feodal sistemine, diline ve kültürel yapısına Norman etkisinin girmesine yol açan bir sürecin başlangıcıdır."
+    ],
+    "claims": [
+      "William'ın filosu içindeki kesin asker sayısı ve at sayısı tarihçiler arasında uzun süredir tartışılmaktadır.",
+      "William'ın çıkarma yaptığı ilk gün sahilde herhangi bir yerel İngiliz garnizonunun olup olmadığı ve direnişin boyutu tam olarak net değildir."
+    ],
+    "sources": [
+      "Bayeux İşlemesi (Bayeux Tapestry)",
+      "Gesta Guillelmi (Poitiers'li William)",
+      "Anglo-Saxon Chronicle (Anglo-Sakson Kronikleri)"
+    ],
+    "first_video_id": "run_20260928_080426",
+    "created_at": "2026-09-28T08:04:41",
+    "status": "used",
+    "completed_at": "2026-09-28T08:16:40"
   }
 ]
