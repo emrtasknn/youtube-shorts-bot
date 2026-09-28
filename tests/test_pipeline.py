@@ -17,10 +17,35 @@ import youtube_uploader
 
 
 def test_validate_script_accepts_expected_shape():
-    scenes = [
-        {"narration": "Bu çok ilginç bir tarih olayı", "image_prompt": "cinematic ancient scene"}
-        for _ in range(7)
-    ]
+    # Full scene fixture matching the current required schema.
+    # Narration: 9 words × 7 scenes = 63 total words, within [56, 72] range.
+    def _make_scene(narration="Bu çok ilginç bir tarih olayı gerçekten şaşırtıcıdır"):
+        return {
+            "narration": narration,
+            "image_prompt": "cinematic ancient scene vertical 9:16",
+            "visual_fact": "Belirli bir tarihsel gerçek",
+            "visual_role": "evidence",
+            "event_specificity": 0.85,
+            "information_density": 0.80,
+            "visual_intent": {
+                "visual_fact": "Belirli bir tarihsel gerçek",
+                "visual_role": "evidence",
+                "primary_subject": "Tarihi belge",
+                "visual_type": "document",
+                "visual_action": "Arşiv belgesinin okunması",
+                "scene_context": "19. yüzyıl Osmanlı arşivi",
+                "shot_type": "close-up",
+                "composition": "Belge ön planda, arka plan bulanık",
+                "visual_entities": ["Osmanlı belge"],
+                "must_show": ["eski yazı", "mühür"],
+                "avoid": ["modern nesne", "çağdaş insan"],
+                "search_queries": ["Ottoman archive document 19th century", "historical manuscript Turkey"],
+            },
+            "sfx": [],
+            "ending_strategy": "",
+        }
+
+    scenes = [_make_scene() for _ in range(7)]
     result = pipeline.validate_script({"scenes": scenes})
     assert len(result) == 7
 

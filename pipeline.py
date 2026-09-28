@@ -33,6 +33,7 @@ import content_memory
 import event_memory
 import gemini_config
 import content_engine
+import scene_motion
 
 
 # -----------------------------
@@ -1478,6 +1479,35 @@ def build_scene_clip(image_path: Path, start_time: float, end_time: float, motio
             max_x = new_w - VIDEO_WIDTH
             left = int(max_x * (0.85 - 0.70 * progress))
             top = max((new_h - VIDEO_HEIGHT) // 2, 0)
+        elif motion_type == "slow_push_in":
+            # Gentle cinematic push for portrait and reconstruction scenes.
+            # More conservative scale keeps the movement subtle, not dramatic.
+            scale = 1.03 + 0.05 * progress
+            new_w, new_h = int(VIDEO_WIDTH * scale), int(VIDEO_HEIGHT * scale)
+            resized = src_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            left = max((new_w - VIDEO_WIDTH) // 2, 0)
+            # Bias toward upper portion of frame where portrait subjects appear
+            max_top = max(new_h - VIDEO_HEIGHT, 0)
+            top = int(max_top * 0.35)
+        elif motion_type == "vertical_tilt":
+            # Bottom-to-top reveal for architecture and establishing shots.
+            scale = 1.08
+            new_w, new_h = int(VIDEO_WIDTH * scale), int(VIDEO_HEIGHT * scale)
+            resized = src_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            left = max((new_w - VIDEO_WIDTH) // 2, 0)
+            max_y = max(new_h - VIDEO_HEIGHT, 0)
+            # Start near bottom of image (large top offset) and reveal upward
+            top = int(max_y * (0.85 - 0.80 * progress))
+        elif motion_type == "drift":
+            # Subtle diagonal drift for archival documents and artifact close-ups.
+            # Very low movement scale keeps the camera nearly static.
+            scale = 1.04
+            new_w, new_h = int(VIDEO_WIDTH * scale), int(VIDEO_HEIGHT * scale)
+            resized = src_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            max_x = max(new_w - VIDEO_WIDTH, 0)
+            max_y = max(new_h - VIDEO_HEIGHT, 0)
+            left = int(max_x * 0.25 * progress)
+            top = int(max_y * 0.20 * progress)
         else:
             scale = 1.03 + ZOOM_AMOUNT * progress
             new_w, new_h = int(VIDEO_WIDTH * scale), int(VIDEO_HEIGHT * scale)
@@ -2588,7 +2618,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             i, enhancement_info.get("enabled"), enhancement_info.get("profile", "none"),
         )
 
-        motion_type = MOTION_TYPES[(i - 1) % len(MOTION_TYPES)]
+        # V2: scene-aware motion selection (falls back to round-robin when disabled).
+        motion_type = scene_motion.select_motion(scene, i)
+        log.info(
+            "Scene %d motion: type=%s scene_type=%s",
+            i, motion_type, scene_motion.derive_scene_type(scene),
+        )
         scene_clips.append(build_scene_clip(image_path, start, end, motion_type=motion_type))
 
     log.info("7/8 Compositing video and subtitles")
