@@ -1514,5 +1514,40 @@
     "created_at": "2026-09-29T10:49:55",
     "status": "used",
     "completed_at": "2026-09-29T10:57:19"
+  },
+  {
+    "event_id": "evt_4b1fba1e8402",
+    "canonical_title": "The Baghdad Battery",
+    "aliases": [
+      "Bağdat Pili",
+      "Parth Bataryası"
+    ],
+    "date": "250 BC - 250 AD",
+    "date_normalized": "100",
+    "location": "Iraq",
+    "entities": [
+      "Wilhelm Konig"
+    ],
+    "event_summary": "Antik Irak'ta bulunan, içinde demir bir çubuk ve bakır bir silindir bulunan seramik kavanozlardır.",
+    "core_facts": [
+      "Nesneler 1930'larda Irak'ın Khujut Rabu bölgesinde keşfedildi.",
+      "Kavanozlar seramikten yapılmış olup içlerinde bakır silindir ve demir çubuk bulunmaktadır.",
+      "Wilhelm König, bu eserleri Bağdat Müzesi'ndeyken inceleyen ilk arkeologlardan biridir.",
+      "Bakır silindir ve demir çubuk üzerinde kimyasal korozyon izleri mevcuttur.",
+      "Eserler kronolojik olarak Part veya Sasani dönemlerine tarihlendirilmektedir."
+    ],
+    "claims": [
+      "Nesnelerin gerçekten bir 'pil' (elektrik üretim aracı) olarak kullanılıp kullanılmadığı akademik olarak kanıtlanamamıştır.",
+      "Eserlerin antik çağda galvanoplastik kaplama (altın kaplama) için kullanıldığına dair somut arkeolojik kanıt eksikliği bulunmaktadır."
+    ],
+    "sources": [
+      "Wilhelm König, 'Ein galvanisches Element aus der Partherzeit?', 1938.",
+      "Arne Eggebrecht, 'Experimentelle Archäologie', 1987.",
+      "Paul T. Keyser, 'The Purpose of the Parthian Galvanic Cells', 1993."
+    ],
+    "first_video_id": "run_20260929_150903",
+    "created_at": "2026-09-29T15:09:31",
+    "status": "used",
+    "completed_at": "2026-09-29T15:16:05"
   }
 ]
