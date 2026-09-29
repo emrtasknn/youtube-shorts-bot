@@ -1148,5 +1148,333 @@
     "created_at": "2026-09-28T16:22:26",
     "status": "used",
     "completed_at": "2026-09-28T16:34:29"
+  },
+  {
+    "event_id": "evt_94a55a7666fc",
+    "canonical_title": "The Death of Edgar Allan Poe",
+    "aliases": [
+      "Edgar Allan Poe'nun Ölümü",
+      "Gizemli ölüm"
+    ],
+    "date": "1849",
+    "date_normalized": "1849",
+    "location": "Baltimore, Maryland",
+    "entities": [
+      "Edgar Allan Poe",
+      "Dr. John Joseph Moran"
+    ],
+    "event_summary": "Poe was found wandering the streets of Baltimore in a state of distress, wearing clothes that were not his own, and died shortly after in a hospital without ever explaining his condition.",
+    "core_facts": [
+      "Edgar Allan Poe, 3 Ekim 1849'da Baltimore'da Ryan's Fourth Ward Polls yakınında yarı baygın ve perişan halde bulundu.",
+      "Poe, Washington College Hospital'a kaldırıldı ve 7 Ekim 1849 tarihinde hayatını kaybetti.",
+      "Poe, bulunduğu sırada kendisine ait olmayan, eski ve kirli kıyafetler giyiyordu.",
+      "Poe, hastaneye kaldırıldıktan sonra ölümüne kadar geçen sürede hiçbir zaman tam olarak bilinci yerine gelmedi ve neler yaşadığını açıklayamadı.",
+      "Dr. John Joseph Moran, Poe'nun hastanedeki son anlarına tanıklık eden sorumlu doktordu."
+    ],
+    "claims": [
+      "Poe'nun ölüm nedeni hala kesin değildir; alkol zehirlenmesi, tüberküloz, beyin zedelenmesi veya kuduz gibi birçok teori tartışılmaktadır.",
+      "Dr. Moran'ın Poe'nun son günlerine dair anlattıkları, zaman içinde tutarsızlıklar göstermiş ve güvenilirliği sorgulanmıştır."
+    ],
+    "sources": [
+      "John Evangelist Walsh, 'Midnight Dreary: The Mysterious Death of Edgar Allan Poe'",
+      "Kenneth Silverman, 'Edgar A. Poe: Mournful and Never-ending Remembrance'",
+      "Dr. John Joseph Moran'ın 1885 tarihli 'A Defense of Edgar Allan Poe' başlıklı anlatısı"
+    ],
+    "first_video_id": "run_20260929_071208_01",
+    "created_at": "2026-09-29T07:12:35",
+    "status": "used",
+    "completed_at": "2026-09-29T07:18:23"
+  },
+  {
+    "event_id": "evt_75b2fe129506",
+    "canonical_title": "The Eruption of Mount Pelee",
+    "aliases": [
+      "Saint-Pierre Felaketi"
+    ],
+    "date": "1902",
+    "date_normalized": "1902",
+    "location": "Martinik",
+    "entities": [
+      "Ludger Sylbaris"
+    ],
+    "event_summary": "Dağın patlamasıyla tüm Saint-Pierre şehrinin dakikalar içinde yok olduğu, ancak şehrin en hapishanesindeki tek bir mahkumun hayatta kaldığı trajedidir.",
+    "core_facts": [
+      "8 Mayıs 1902 tarihinde gerçekleşen patlama, Saint-Pierre şehrini tamamen yok etti.",
+      "Yaklaşık 30.000 kişi piroklastik akıntılar sonucunda hayatını kaybetti.",
+      "Ludger Sylbaris, yerin altında havalandırması kısıtlı taş bir hücrede olduğu için hayatta kaldı.",
+      "Patlama, 20. yüzyılın en ölümcül volkanik felaketlerinden biri olarak tarihe geçti.",
+      "Şehir, patlama anından sadece birkaç dakika sonra kül ve kızgın gaz bulutları altında kaldı."
+    ],
+    "claims": [
+      "Vali Louis Mouttet'in yaklaşan seçimler nedeniyle halkın şehri terk etmesini engellediği iddiası.",
+      "Gözlemcilerin patlamadan önceki günlerde yaptığı volkanik uyarıların ciddiyet derecesi."
+    ],
+    "sources": [
+      "Alfred Lacroix, 'La Montagne Pelée et ses éruptions'",
+      "The 1902 Eruption of Mount Pelée - Smithsonian Institution Global Volcanism Program"
+    ],
+    "first_video_id": "run_20260929_071208_02",
+    "created_at": "2026-09-29T07:18:51",
+    "status": "used",
+    "completed_at": "2026-09-29T07:24:18"
+  },
+  {
+    "event_id": "evt_48ea1a062df2",
+    "canonical_title": "The disappearance of the Nine-Man Crew of the MV Joyita",
+    "aliases": [
+      "MV Joyita Kaybı"
+    ],
+    "date": "1955",
+    "date_normalized": "1955",
+    "location": "Güney Pasifik",
+    "entities": [
+      "MV Joyita"
+    ],
+    "event_summary": "Pasifik Okyanusu'nda terk edilmiş ve kısmen batmış halde bulunan bir teknenin, tüm mürettebatının ve kargosunun kaybolması olayı.",
+    "core_facts": [
+      "MV Joyita, 3 Ekim 1955'te Samoa'dan yola çıktı ancak hedefine ulaşmadı.",
+      "Tekne 10 Kasım 1955'te Tokelau Adaları yakınlarında terk edilmiş ve yarı batık halde bulundu.",
+      "Tekne resmi olarak 'batmaz' olarak sınıflandırılmıştı çünkü gövdesi mantar (cork) ile yalıtılmıştı.",
+      "İncelemeler sonucunda radyo cihazının kablosunun kopuk olduğu ve birinin acil durum sinyali vermeye çalıştığı belirlendi.",
+      "Mürettebattan ve 16 yolcudan toplam 25 kişiden hiçbir iz bulunamadı."
+    ],
+    "claims": [
+      "Teknenin kargo beyannamesinin gerçek yükü yansıtmadığı ve kaçakçılık yapıldığı iddiaları.",
+      "Mürettebatın teknenin güvenliğinden şüphe duyarak kaçtığı mı yoksa başka bir gemi tarafından saldırıya uğradığı mı konusu."
+    ],
+    "sources": [
+      "The 1956 Official Marine Court of Inquiry into the MV Joyita disaster",
+      "David Wright, 'Joyita: Solving the Mystery of the Ghost Ship'",
+      "Robin Maugham, 'The Joyita Mystery'"
+    ],
+    "first_video_id": "run_20260929_071208_04",
+    "created_at": "2026-09-29T07:26:15",
+    "status": "used",
+    "completed_at": "2026-09-29T07:31:25"
+  },
+  {
+    "event_id": "evt_4f8886563bc4",
+    "canonical_title": "1911 Trablusgarp Savaşı ve İtalyan İşgali",
+    "aliases": [
+      "İtalya'nın Trablusgarp'ı İşgali",
+      "1911 İtalyan-Osmanlı Savaşı'nın Başlangıcı"
+    ],
+    "date": "29 Eylül 1911",
+    "date_normalized": "1911-09-29",
+    "location": "Trablusgarp (Libya)",
+    "entities": [
+      "İtalya Krallığı",
+      "Osmanlı İmparatorluğu",
+      "Mustafa Kemal Paşa",
+      "Enver Paşa"
+    ],
+    "event_summary": "29 Eylül 1911 tarihinde İtalya Krallığı, Osmanlı Devleti'nin Kuzey Afrika'daki son toprağı olan Trablusgarp'a savaş ilan ederek işgal sürecini başlatmıştır. Bu olay, sömürgeci güçlerin Osmanlı topraklarını paylaşma hırsının bir parçası olmuş ve Osmanlı Devleti'ni orduyu bölgeye sevk etmeye zorlamıştır. Balkan Savaşları öncesi yaşanan bu süreç, modern Türk tarihinin önemli figürlerinin (Mustafa Kemal, Enver Paşa vb.) sivil kıyafetlerle bölgeye giderek yerel halkı örgütlediği gerilla savaşlarına sahne olmuştur.",
+    "core_facts": [
+      "İtalya Krallığı, 28 Eylül 1911'de Osmanlı Devleti'ne 24 saat süreli bir ültimatom vermiştir.",
+      "29 Eylül 1911 tarihinde İtalya resmen Osmanlı Devleti'ne savaş ilan etmiştir.",
+      "Osmanlı ordusu düzenli birliklerini bölgeye sevk edemediği için Mustafa Kemal, Enver Paşa ve Nuri Conker gibi gönüllü subaylar bölgeye gizlice geçmiştir.",
+      "Savaş, 18 Ekim 1912'de imzalanan Uşi Antlaşması ile sona ermiş ve Trablusgarp İtalya'ya bırakılmıştır.",
+      "Bu çatışma, uçakların savaş tarihinde ilk kez keşif ve bombardıman amacıyla kullanıldığı ilk muharebedir."
+    ],
+    "claims": [
+      "Osmanlı Devleti'nin savaşı askeri olarak kazanabileceği halde diplomatik yollarla neden çekilmek zorunda kaldığına dair stratejik yaklaşımlar.",
+      "İttihat ve Terakki liderlerinin savaştaki kişisel başarılarının dönemin siyasi propagandasındaki payı."
+    ],
+    "sources": [
+      "Yusuf Hikmet Bayur, Türk İnkılabı Tarihi",
+      "Mustafa Kemal Atatürk, Arıburnu Muharebeleri Raporu (ve bölgeye dair anıları)",
+      "İtalyan Genelkurmay Başkanlığı Arşivleri (Ufficio Storico dello Stato Maggiore dell'Esercito)"
+    ],
+    "first_video_id": "run_20260929_071208_05",
+    "created_at": "2026-09-29T07:31:38",
+    "status": "used",
+    "completed_at": "2026-09-29T07:40:28"
+  },
+  {
+    "event_id": "evt_9a16fd42c3ac",
+    "canonical_title": "Babi Yar Katliamı",
+    "aliases": [
+      "Babi Yar Faciası",
+      "Kiev'deki Nazi Katliamı"
+    ],
+    "date": "29 Eylül 1941",
+    "date_normalized": "1941-09-29",
+    "location": "Kiev, Ukrayna SSC",
+    "entities": [
+      "Nazi Almanyası",
+      "Einsatzgruppen",
+      "Yahudi toplumu"
+    ],
+    "event_summary": "29 Eylül 1941 tarihinde, Nazi Almanyası'nın Einsatzgruppen birimleri, Kiev'in dışındaki Babi Yar vadisinde sistematik bir şekilde iki gün sürecek olan büyük bir katliam başlattı. Holokost'un en kanlı operasyonlarından biri olarak kabul edilen bu olayda, şehrin Yahudi nüfusu 'yeniden yerleşim' bahanesiyle vadiye getirilerek topluca kurşuna dizildi ve uçurumlara atıldı.",
+    "core_facts": [
+      "29-30 Eylül 1941 tarihlerinde Sonderkommando 4a birimi tarafından gerçekleştirilmiştir.",
+      "Toplam 33.771 Yahudi, sistematik bir şekilde kurşuna dizilerek öldürülmüştür.",
+      "Katliam, Kiev'in kuzeybatısındaki Babi Yar vadisinde gerçekleşmiştir.",
+      "Operasyon, Einsatzgruppen birimleri tarafından organize edilmiştir.",
+      "Sovyet savaş esirleri, Romanlar ve komünist parti üyeleri de sonraki dönemlerde aynı noktada infaz edilmiştir."
+    ],
+    "claims": [
+      "Katliamda ölen toplam sivil sayısının (Yahudiler ve diğer gruplar dahil) 100.000'e kadar çıkıp çıkmadığı tartışmalıdır.",
+      "Yerel Ukraynalı kolluk kuvvetlerinin (Auxiliary Police) katliama katılım düzeyi ve operasyonel rolü tarihçiler arasında tartışılmaktadır."
+    ],
+    "sources": [
+      "Einsatzgruppen Operasyonel Durum Raporları (Ereignismeldungen UdSSR)",
+      "Kurt Levin, 'Babi Yar'da İnfaz: Bir Tanığın Anıları'",
+      "Wendy Lower, 'Hitler's Furies: German Women in the Nazi Killing Fields'"
+    ],
+    "first_video_id": "run_20260929_071208_06",
+    "created_at": "2026-09-29T07:40:59",
+    "status": "used",
+    "completed_at": "2026-09-29T07:49:19"
+  },
+  {
+    "event_id": "evt_c5edbf4012bf",
+    "canonical_title": "Osmanlı Devleti'nde İlk Osmanlı-Avusturya Antlaşması: İstanbul (İbrahim Paşa) Antlaşması",
+    "aliases": [
+      "1533 İstanbul Antlaşması",
+      "İbrahim Paşa Antlaşması"
+    ],
+    "date": "1533",
+    "date_normalized": "1533-07-22",
+    "location": "İstanbul, Osmanlı İmparatorluğu",
+    "entities": [
+      "Kanuni Sultan Süleyman",
+      "Arşidük Ferdinand",
+      "Pargalı İbrahim Paşa",
+      "Avusturya Arşidüklüğü"
+    ],
+    "event_summary": "1533 İstanbul Antlaşması, Osmanlı Devleti ile Avusturya (Kutsal Roma Germen İmparatorluğu) arasında imzalanan ilk resmi antlaşmadır. Bu antlaşma ile Avusturya Arşidükü, Osmanlı Sadrazamı ile denk sayılmış; böylece Osmanlı'nın Avrupa üzerindeki siyasi üstünlüğü (protokol üstünlüğü) hukuken tescillenmiştir.",
+    "core_facts": [
+      "Antlaşma 1533 yılında, Kanuni Sultan Süleyman döneminde imzalanmıştır.",
+      "Avusturya Arşidükü Ferdinand'ın elçileri ile Sadrazam Pargalı İbrahim Paşa arasında görüşmeler yapılmıştır.",
+      "Antlaşma metni, Avusturya Arşidükü'nün protokol bakımından Osmanlı sadrazamına denk sayılmasını hükme bağlamıştır.",
+      "Macaristan toprakları üzerindeki Osmanlı egemenliği, bu antlaşma ile uluslararası hukuk nezdinde pekiştirilmiştir.",
+      "Antlaşma, Osmanlı İmparatorluğu'nun Avrupa diplomasisindeki mutlak üstünlüğünü (hukuki üstünlük) simgeleyen ilk resmi belgedir."
+    ],
+    "claims": [
+      "Antlaşmanın kalıcılığı ve kapsamı konusunda tarihçiler, bunun bir 'barış' mı yoksa geçici bir 'ateşkes' mi olduğu üzerine farklı görüşler öne sürmektedir.",
+      "Ferdinand'ın bu antlaşmayı imzalarken kişisel olarak ne kadar baskı altında kaldığı ve hükümlerin imparatorluk genelinde ne kadar ciddiyetle uygulandığı tartışmalıdır."
+    ],
+    "sources": [
+      "Feridun Bey, Münşe'âtü's-Selâtîn",
+      "İsmail Hakkı Uzunçarşılı, Osmanlı Tarihi II. Cilt",
+      "Halil İnalcık, Osmanlı İmparatorluğu Klasik Çağ (1300-1600)"
+    ],
+    "first_video_id": "run_20260929_071208_07",
+    "created_at": "2026-09-29T07:49:32",
+    "status": "used",
+    "completed_at": "2026-09-29T07:56:00"
+  },
+  {
+    "event_id": "evt_1ba8275999d7",
+    "canonical_title": "1876 Kanun-ı Esasi ve I. Meşrutiyet'in İlanı",
+    "aliases": [
+      "I. Meşrutiyet Dönemi",
+      "Türk tarihinin ilk yazılı anayasası"
+    ],
+    "date": "23 Aralık 1876",
+    "date_normalized": "1876-12-23",
+    "location": "İstanbul, Osmanlı İmparatorluğu",
+    "entities": [
+      "II. Abdülhamid",
+      "Genç Osmanlılar",
+      "Mebusan Meclisi",
+      "Ayan Meclisi"
+    ],
+    "event_summary": "Osmanlı Devleti'nde devlet yönetimine halkın katılımını sağlayan ve anayasal düzene geçişi temsil eden ilk yazılı anayasa olan Kanun-ı Esasi, II. Abdülhamid tarafından 23 Aralık 1876 tarihinde ilan edilmiştir. Bu gelişme ile birlikte parlamenter sisteme geçilerek Mebusan ve Ayan meclislerinden oluşan 'Meclis-i Umumi' kurulmuştur. I. Meşrutiyet dönemi, 1877-1878 Osmanlı-Rus Savaşı'nın (93 Harbi) çıkması üzerine padişahın anayasanın kendisine verdiği yetkiyi kullanarak meclisi süresiz tatil etmesiyle sona ermiştir.",
+    "core_facts": [
+      "23 Aralık 1876 tarihinde Kanun-ı Esasi resmen ilan edilerek Osmanlı Devleti'nde anayasal monarşi dönemine geçilmiştir.",
+      "Anayasa metni Mithat Paşa başkanlığındaki bir komisyon tarafından hazırlanmıştır.",
+      "Parlamenter sistem iki kanatlı yapılmıştır: Ayan Meclisi (üyeleri padişahça atanan) ve Mebusan Meclisi (halk tarafından seçilen).",
+      "II. Abdülhamid, 93 Harbi'nin yarattığı kaosu ve anayasanın verdiği yetkileri gerekçe göstererek 1878'de meclisi süresiz tatil etmiştir.",
+      "Kanun-ı Esasi'ye göre egemenlik ve yürütme yetkisi padişahın mutlak kontrolündeydi, bakanlar meclise değil padişaha karşı sorumluydu."
+    ],
+    "claims": [
+      "II. Abdülhamid'in meşrutiyeti ilan etmedeki samimiyeti; bunun bir 'taktiksel geri adım' mı yoksa 'liberal bir reform' mu olduğu tarihçilerce tartışılmaktadır.",
+      "Mithat Paşa ve Genç Osmanlıların bu anayasal düzenle amaçladıkları hedeflerin, devleti kurtarmak mı yoksa bürokratik bir darbe mi olduğu konusu tartışmalıdır."
+    ],
+    "sources": [
+      "Suna Kili, 'Türk Anayasa Metinleri'",
+      "Şerif Mardin, 'Jön Türklerin Siyasi Fikirleri 1895-1908'",
+      "Kanun-ı Esasi Metni (1876 orijinal metni)"
+    ],
+    "first_video_id": "run_20260929_071208_08",
+    "created_at": "2026-09-29T07:56:24",
+    "status": "used",
+    "completed_at": "2026-09-29T08:05:53"
+  },
+  {
+    "event_id": "evt_9761a2f8df7a",
+    "canonical_title": "1859 Carrington Olayı ve Güneş Fırtınası",
+    "aliases": [
+      "Carrington Etkisi",
+      "1859 Güneş Süper Fırtınası"
+    ],
+    "date": "1-2 Eylül 1859",
+    "date_normalized": "1859-09-01",
+    "location": "Dünya çapında",
+    "entities": [
+      "Richard Carrington",
+      "Telgraf Sistemi",
+      "Güneş"
+    ],
+    "event_summary": "1859 Eylül başında kaydedilen tarihin en şiddetli jeomanyetik fırtınası, güneş üzerindeki devasa bir patlamanın ardından Dünya'ya ulaşarak telgraf sistemlerini işlemez hale getirmiş, hatta operatörleri çarpmış ve telgraf kağıtlarını tutuşturmuştur. Kutup ışıkları (auroralar) o kadar parlak olmuştur ki, tropikal bölgelerdeki insanlar gece yarısı gazetelerini okuyabildiklerini bildirmişlerdir.",
+    "core_facts": [
+      "1 Eylül 1859 tarihinde Richard Carrington, Güneş üzerinde büyük bir parlamayı (solar flare) teleskopla gözlemleyen ilk kişidir.",
+      "Dünya çapında jeomanyetik gözlemevleri, 1-2 Eylül tarihlerinde benzeri görülmemiş bir manyetik sapma kaydetmiştir.",
+      "Telgraf hatlarında indüklenen elektrik akımı, cihazların çalışmasını engellemiş ve operatörlerin elektrik çarpması yaşamasına neden olmuştur.",
+      "Kutup ışıkları (auroralar), düşük enlemlerdeki Karayipler, Hawaii ve Meksika gibi bölgelerde dahi gözlemlenmiştir.",
+      "Telgraf hatlarının bataryaları devre dışı bırakılmasına rağmen, hatlarda biriken elektrik sayesinde telgraf çekilebildiği rapor edilmiştir."
+    ],
+    "claims": [
+      "Telgraf kağıtlarının doğrudan alev alması olayı; bazı araştırmacılar bunun lokal yangınlar olabileceğini veya abartılmış olabileceğini savunur.",
+      "Fırtınanın tam olarak vurduğu anın jeomanyetik etkilerinin modern şebekeler üzerindeki tahmini hasar miktarı (modelleme farklılıkları nedeniyle)."
+    ],
+    "sources": [
+      "Richard Carrington'ın 1859 tarihli 'Description of a Singular Appearance seen in the Sun on September 1, 1859' makalesi",
+      "NASA, Solar Storm of 1859 - Carrington Event scientific archives",
+      "Royal Astronomical Society, Monthly Notices of the Royal Astronomical Society (Vol. 20, 1860)"
+    ],
+    "first_video_id": "run_20260929_071208_09",
+    "created_at": "2026-09-29T08:06:04",
+    "status": "used",
+    "completed_at": "2026-09-29T08:13:38"
+  },
+  {
+    "event_id": "evt_197ae4d34571",
+    "canonical_title": "1816 Yılı: Yazsız Yıl ve Dünya Çapındaki Kıtlık",
+    "aliases": [
+      "Tambora'nın Kışkırttığı İklim Felaketi",
+      "1816 Yazsız Yıl"
+    ],
+    "date": "1816",
+    "date_normalized": "1816-01-01",
+    "location": "Dünya geneli",
+    "entities": [
+      "Tambora Yanardağı",
+      "Hollanda Krallığı",
+      "ABD",
+      "İsviçre"
+    ],
+    "event_summary": "1815'te Endonezya'daki Tambora Yanardağı'nın şiddetli patlaması, atmosfere yayılan devasa kül bulutları nedeniyle 1816 yılında güneş ışınlarının dünyaya ulaşmasını engelleyerek kuzey yarım kürede yaz mevsiminin yaşanmamasına, ciddi tarımsal kıtlıklara ve küresel ekonomik krize yol açmıştır.",
+    "core_facts": [
+      "1815 yılında Endonezya'daki Tambora Yanardağı, VEI-7 ölçeğinde kaydedilen tarihin en şiddetli volkanik patlamasını gerçekleştirdi.",
+      "Patlama sonucu stratosfere yayılan sülfürik asit aerosolleri, 1816 yılında küresel sıcaklıkların ortalama 0.4-0.7 santigrat derece düşmesine neden oldu.",
+      "1816 Haziran ayında New England ve Kanada'nın bazı bölgelerinde kar yağışı ve don olayları kaydedildi.",
+      "Avrupa ve Kuzey Amerika'da mahsul kıtlığı nedeniyle tahıl fiyatları katlanarak arttı ve sosyal huzursuzluklara yol açtı.",
+      "İsviçre'de at popülasyonundaki azalma ve ulaşım sorunu, Karl von Drais'in 'Laufmaschine' adlı ilkel bisikleti icat etmesine doğrudan zemin hazırladı."
+    ],
+    "claims": [
+      "Küresel nüfus azalmasının sadece kıtlığa mı bağlı olduğu yoksa kolera salgını gibi diğer çevresel faktörlerin de aynı dönemde tetikleyici rol oynayıp oynamadığı.",
+      "O dönemdeki siyasi ayaklanmaların doğrudan sadece iklimsel felakete mi bağlı olduğu, yoksa Napolyon Savaşları sonrası ekonomik çöküntünün bir sonucu mu olduğu."
+    ],
+    "sources": [
+      "Gillen D'Arcy Wood, 'Tambora: The Eruption That Changed the World'",
+      "William K. Klingaman, 'The Year Without Summer: 1816 and the Volcano That Darkened the World and Changed History'"
+    ],
+    "first_video_id": "run_20260929_071208_10",
+    "created_at": "2026-09-29T08:14:01",
+    "status": "used",
+    "completed_at": "2026-09-29T08:21:36"
   }
 ]
