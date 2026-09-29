@@ -1476,5 +1476,43 @@
     "created_at": "2026-09-29T08:14:01",
     "status": "used",
     "completed_at": "2026-09-29T08:21:36"
+  },
+  {
+    "event_id": "evt_e695b576f56a",
+    "canonical_title": "Buca Antlaşması ve Osmanlı Devleti'nin Batı'daki En Geniş Sınırları",
+    "aliases": [
+      "1672 Buca Antlaşması",
+      "Osmanlı-Lehistan Savaşları"
+    ],
+    "date": "18 Ekim 1672",
+    "date_normalized": "1672-10-18",
+    "location": "Buca (Ukrayna)",
+    "entities": [
+      "IV. Mehmet",
+      "Fazıl Ahmet Paşa",
+      "Lehistan-Litvanya Birliği",
+      "Podolya"
+    ],
+    "event_summary": "1672 yılında Osmanlı Devleti ile Lehistan arasında imzalanan Buca Antlaşması, Osmanlı Devleti'nin Batı'da toprak bakımından ulaştığı en geniş sınırları ifade eden tarihsel bir dönüm noktasıdır. IV. Mehmet döneminde Sadrazam Fazıl Ahmet Paşa'nın Lehistan üzerine düzenlediği sefer sonucunda imzalanan bu antlaşma ile Podolya bölgesi Osmanlı hakimiyetine girmiştir.",
+    "core_facts": [
+      "18 Ekim 1672 tarihinde Osmanlı Devleti ile Lehistan-Litvanya Birliği arasında imzalanmıştır.",
+      "Antlaşma ile Podolya bölgesi (Kamaniçe kalesi dahil) Osmanlı egemenliğine girmiştir.",
+      "Lehistan, Osmanlı Devleti'ne yıllık 22.000 düka altın vergi ödemeyi kabul etmiştir.",
+      "Bu antlaşma, Osmanlı Devleti'nin Avrupa topraklarında ulaştığı coğrafi olarak en geniş sınırlardır.",
+      "Sefer, IV. Mehmet döneminde Sadrazam Köprülü Fazıl Ahmet Paşa'nın komutasında yürütülmüştür."
+    ],
+    "claims": [
+      "Lehistan meclisinin (Sejm) antlaşmayı onaylayıp onaylamadığı ve buna bağlı olarak antlaşmanın hukuki geçerliliğinin süresi tartışmalıdır.",
+      "Osmanlı yönetiminin Podolya'yı ilhak etme kararı ile stratejik tampon bölge oluşturma amacı arasındaki öncelik farkı tarihçilerce farklı yorumlanmaktadır."
+    ],
+    "sources": [
+      "Joseph von Hammer, Büyük Osmanlı Tarihi",
+      "İsmail Hakkı Uzunçarşılı, Osmanlı Tarihi III. Cilt",
+      "Feridun Emecen, Osmanlı İmparatorluğu'nun Siyasi Tarihi"
+    ],
+    "first_video_id": "run_20260929_104947",
+    "created_at": "2026-09-29T10:49:55",
+    "status": "used",
+    "completed_at": "2026-09-29T10:57:19"
   }
 ]
