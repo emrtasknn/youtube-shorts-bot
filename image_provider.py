@@ -236,7 +236,6 @@ def _fal(prompt: str, filename: Path) -> ImageResponse:
         "num_inference_steps": int(_env("FAL_IMAGE_STEPS", "4")),
         "num_images": 1,
         "output_format": "jpeg",
-        "sync_mode": True,
     }
     data = _request_json(
         "POST",
