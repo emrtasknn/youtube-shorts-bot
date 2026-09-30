@@ -1410,7 +1410,8 @@ def resolve_visual_source(
             excluded_urls=list(excluded),
             visual_intent=intent,
         )
-        if media_result:
+        media_min_relevance = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
+        if media_result and float(media_result.get("relevance_score", 0)) >= media_min_relevance:
             log.info(
                 "VISUAL: %s -> %s relevance=%.2f",
                 scene_description[:40],
@@ -1418,6 +1419,12 @@ def resolve_visual_source(
                 media_result.get("relevance_score", 0),
             )
             return media_result
+        if media_result:
+            log.info(
+                "VISUAL: real-media result below QA threshold (%.2f < %.2f); continuing fallback",
+                float(media_result.get("relevance_score", 0)),
+                media_min_relevance,
+            )
     except Exception as exc:
         log.warning("VISUAL: real-media router failed: %s", exc)
 
