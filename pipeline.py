@@ -1080,7 +1080,7 @@ def enhance_source_image(image_path: Path, source_type: str = "", visual_intent:
             img = source.convert("RGB")
         original_size = img.size
 
-        if source_type in ("wikimedia", "openverse"):
+        if source_type in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             if visual_type in ("map", "document", "artifact"):
                 img = ImageEnhance.Contrast(img).enhance(1.04)
                 img = ImageEnhance.Sharpness(img).enhance(1.06)
@@ -2167,7 +2167,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
     for scene in factual_scenes:
         observed_source_quality = (
             scene["relevance_score"]
-            if scene["source_type"] in ("wikimedia", "openverse")
+            if scene["source_type"] in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash")
             else scene["planned_event_specificity"]
         )
         factual_quality_scores.append(
@@ -2193,7 +2193,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
         "passed": True,
         "decision": "PASS_WITH_WARNINGS" if warnings else "PASS",
         "scene_count": len(results),
-        "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
+        "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash")),
         "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
         "atmosphere_scenes": atmosphere_count,
         "factual_scene_quality_score": round(total_quality_score, 3),
