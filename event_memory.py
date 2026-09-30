@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
-import gemini_config
+import ai_provider
 
 log = logging.getLogger("shorts-bot")
 
@@ -47,7 +47,7 @@ UNCERTAIN = "UNCERTAIN"
 
 def _call_gemini_json(prompt: str, label: str = "gemini call") -> Optional[dict | list]:
     """Call Gemini with JSON output mode using centralized retry logic."""
-    res = gemini_config.call_gemini_with_retry(
+    res = ai_provider.generate(
         prompt=prompt,
         label=label,
         response_mime_type="application/json"
