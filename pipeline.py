@@ -2445,6 +2445,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         log.info("First run with V2 engine. Attempting migration...")
         event_memory.migrate_existing_memory()
 
+    log.info("AI provider chain: %s", gemini_config.provider_status())
     log.info("1/8 Content Discovery | type=%s", content_type)
     if content_type == "TREND_HISTORY":
         discovery_result = event_memory.run_discovery_pipeline()
