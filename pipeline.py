@@ -2515,7 +2515,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
                 log.info("Scene %d uses Scene 1 visual for a clean visual loop.", i)
 
         # Download historical/web images or fallback to AI
-        if not visual_loop_reused and v_source.get("source_type") in ("wikimedia", "openverse"):
+        if not visual_loop_reused and v_source.get("source_type") in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             try:
                 img_url = v_source.get("image_url")
                 resp = requests.get(
@@ -2546,7 +2546,11 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         # V1.4.1: source metadata is part of the visual QA trail.
         scene["resolved_visual"] = {
             "source_type": v_source.get("source_type", ""),
+            "provider": v_source.get("provider", v_source.get("source_type", "")),
             "title": v_source.get("title", ""),
+            "page_url": v_source.get("page_url", ""),
+            "author": v_source.get("author", ""),
+            "attribution_required": v_source.get("attribution_required", False),
             "relevance_score": v_source.get("relevance_score", 0.0),
             "event_specificity": v_source.get("event_specificity", 0.0),
             "information_density": v_source.get("information_density", 0.0),
