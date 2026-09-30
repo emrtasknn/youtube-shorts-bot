@@ -1402,7 +1402,25 @@ def resolve_visual_source(
             )
             return result
 
-    # Real-media fallback layer\n    try:\n        import media_provider\n        media_result = media_provider.search(queries, excluded_urls=list(excluded), visual_intent=intent)\n        if media_result:\n            log.info("VISUAL: %s -> %s relevance=%.2f", scene_description[:40], media_result.get("source_type", "real media"), media_result.get("relevance_score", 0))\n            return media_result\n    except Exception as exc:\n        log.warning("VISUAL: real-media router failed: %s", exc)\n\n    result = search_openverse_image(
+    # Real-media fallback layer
+    try:
+        import media_provider
+        media_result = media_provider.search(
+            queries,
+            excluded_urls=list(excluded),
+            visual_intent=intent,
+        )
+        if media_result:
+            log.info(
+                "VISUAL: %s -> %s relevance=%.2f",
+                scene_description[:40],
+                media_result.get("source_type", "real media"),
+                media_result.get("relevance_score", 0),
+            )
+            return media_result
+    except Exception as exc:
+        log.warning("VISUAL: real-media router failed: %s", exc)
+
         queries,
         list(excluded),
         min_relevance=0.65,
