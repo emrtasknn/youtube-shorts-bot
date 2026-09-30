@@ -2082,11 +2082,15 @@ def _looks_turkish_title(text: str) -> bool:
 def _sanitize_youtube_title(raw: str) -> str:
     """Normalize a model response into a single Shorts title."""
     value = str(raw or "").strip()
-    value = value.strip('"').strip("'").strip()
-    value = re.sub(r"^(?:Title|Başlık)\\s*:\\s*", "", value, flags=re.IGNORECASE).strip()
-    value = re.sub(r"#Shorts\\b", "", value, flags=re.IGNORECASE).strip()
+    value = re.sub(r"^\s*(?:Title|Başlık)\s*:\s*", "", value, flags=re.IGNORECASE).strip()
+    value = re.sub(r"#Shorts\b", "", value, flags=re.IGNORECASE).strip()
+    value = value.strip().strip('"').strip("'").strip()
+    if value.startswith('"') and '"' in value[1:]:
+        value = value[1:value.find('"', 1)]
+    elif value.startswith("'") and "'" in value[1:]:
+        value = value[1:value.find("'", 1)]
     value = value.splitlines()[0].strip() if value else ""
-    value = re.sub(r"\\s+", " ", value)
+    value = re.sub(r"\s+", " ", value)
     if len(value) > 90:
         value = value[:87].rstrip(" .,!?;:") + "..."
     return value[:90].strip()
