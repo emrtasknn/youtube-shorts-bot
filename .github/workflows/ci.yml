@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/multi-provider-core]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile production Python
+        run: |
+          python -m py_compile             pipeline.py             ai_provider.py             image_provider.py             video_provider.py             media_provider.py             content_engine.py             content_memory.py             event_memory.py             prompt_engine.py             scene_motion.py             scene_transitions.py             visual_qc.py             visual_telemetry.py             youtube_uploader.py
+
+      - name: Import core modules
+        env:
+          GEMINI_API_KEY: ci-test-key
+          TELEGRAM_BOT_TOKEN: 123456:ci-test-token
+          TELEGRAM_CHAT_ID: 123456789
+        run: python -c "import pipeline; import image_provider; import video_provider; print('Core imports OK')"
+
+      - name: Run test suite
+        run: python -m pytest -q
