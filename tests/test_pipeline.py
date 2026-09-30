@@ -883,7 +883,11 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "CompositeVideoClip", lambda *a, **kw: FakeVideo())
 
     def fake_download_ai_image(prompt, path):
-        Image.new("RGB", (1080, 1920), "white").save(path, format="JPEG", quality=90)
+        # Visual QC requires a non-trivial file size; textured noise avoids
+        # JPEG collapsing a uniform fixture below the 50 KB threshold.
+        Image.effect_noise((1080, 1920), 128).convert("RGB").save(
+            path, format="JPEG", quality=90
+        )
         return Path(path)
 
     monkeypatch.setattr(pipeline, "download_ai_image", fake_download_ai_image)
