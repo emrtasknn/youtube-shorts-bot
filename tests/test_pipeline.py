@@ -888,6 +888,10 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
             return self
 
     monkeypatch.setattr(pipeline, "AudioFileClip", lambda p: FakeAudio())
+    # Isolate this pipeline test from MoviePy CompositeAudioClip internals.
+    # The production compositor is exercised by the real runtime; this test only
+    # verifies the auto-publish branch and should not require a full MoviePy graph.
+    monkeypatch.setattr(pipeline, "CompositeAudioClip", lambda layers: FakeAudio())
 
     class FakeVideo:
         def with_duration(self, d):
