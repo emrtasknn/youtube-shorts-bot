@@ -26,7 +26,8 @@ VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 
 DEFAULT_PROVIDER_ORDER = [
-    "imagen",
+    "nano_banana_2",
+    "nano_banana_2_lite",
     "cloudflare",
     "fal",
     "together",
@@ -67,7 +68,8 @@ def _configured(provider: str) -> bool:
     if provider == "cloudflare":
         return bool(_env("CLOUDFLARE_ACCOUNT_ID") and _env("CLOUDFLARE_API_TOKEN"))
     required = {
-        "imagen": "GEMINI_API_KEY",
+        "nano_banana_2": "GEMINI_API_KEY",
+        "nano_banana_2_lite": "GEMINI_API_KEY",
         "fal": "FAL_KEY",
         "together": "TOGETHER_API_KEY",
         "deepai": "DEEPAI_API_KEY",
@@ -176,33 +178,65 @@ def _request_json(
         raise ImageProviderError("provider returned non-JSON response") from exc
 
 
-def _imagen(prompt: str, filename: Path) -> ImageResponse:
+def _gemini_image(prompt: str, filename: Path, *, model: str, image_size: str) -> ImageResponse:
+    """Generate a native Gemini image using the Interactions API (Nano Banana family)."""
     from google import genai
 
     client = genai.Client(api_key=_env("GEMINI_API_KEY"))
+    response_format = {
+        "type": "image",
+        "mime_type": "image/jpeg",
+        "aspect_ratio": "9:16",
+        "image_size": image_size,
+    }
     try:
-        result = client.models.generate_images(
-            model=_env("GEMINI_IMAGE_MODEL", "imagen-3.0-generate-002"),
-            prompt=prompt,
-            config={
-                "number_of_images": 1,
-                "output_mime_type": "image/jpeg",
-                "aspect_ratio": "9:16",
-            },
+        interaction = client.interactions.create(
+            model=model,
+            input=prompt,
+            response_format=response_format,
         )
     except Exception as exc:
         text = str(exc)
-        retryable = any(x in text.lower() for x in ("429", "503", "unavailable", "resource_exhausted", "timeout"))
-        raise ImageProviderError(f"Imagen request failed: {text}", retryable=retryable) from exc
+        retryable = any(
+            marker in text.lower()
+            for marker in ("429", "503", "unavailable", "resource_exhausted", "timeout", "timed out")
+        )
+        raise ImageProviderError(
+            f"{model} request failed: {text}",
+            retryable=retryable,
+            cooldown_seconds=3600 if any(x in text.lower() for x in ("quota", "402", "403", "resource_exhausted")) else None,
+        ) from exc
 
-    images = getattr(result, "generated_images", None) or []
-    if not images:
-        raise ImageProviderError("Imagen returned no generated images")
-    image_bytes = images[0].image.image_bytes
-    _save_bytes(image_bytes, filename)
+    output_image = getattr(interaction, "output_image", None)
+    image_data = getattr(output_image, "data", None) if output_image is not None else None
+    if not image_data:
+        raise ImageProviderError(f"{model} returned no image data")
+
+    try:
+        _save_bytes(base64.b64decode(image_data), filename)
+    except Exception as exc:
+        raise ImageProviderError(f"{model} returned invalid image data: {exc}") from exc
+
     _normalize_image(filename)
-    return ImageResponse("imagen", _env("GEMINI_IMAGE_MODEL", "imagen-3.0-generate-002"), filename)
+    return ImageResponse("nano_banana_2" if "lite" not in model.lower() else "nano_banana_2_lite", model, filename)
 
+
+def _nano_banana_2(prompt: str, filename: Path) -> ImageResponse:
+    return _gemini_image(
+        prompt,
+        filename,
+        model=_env("NANO_BANANA_2_MODEL", "gemini-3.1-flash-image"),
+        image_size=_env("NANO_BANANA_2_IMAGE_SIZE", "2K"),
+    )
+
+
+def _nano_banana_2_lite(prompt: str, filename: Path) -> ImageResponse:
+    return _gemini_image(
+        prompt,
+        filename,
+        model=_env("NANO_BANANA_2_LITE_MODEL", "gemini-3.1-flash-lite-image"),
+        image_size="1K",
+    )
 
 def _cloudflare(prompt: str, filename: Path) -> ImageResponse:
     account_id = _env("CLOUDFLARE_ACCOUNT_ID")
@@ -353,7 +387,8 @@ def _huggingface(prompt: str, filename: Path) -> ImageResponse:
 
 
 _HANDLERS: dict[str, Callable[[str, Path], ImageResponse]] = {
-    "imagen": _imagen,
+    "nano_banana_2": _nano_banana_2,
+    "nano_banana_2_lite": _nano_banana_2_lite,
     "cloudflare": _cloudflare,
     "fal": _fal,
     "together": _together,
@@ -408,7 +443,7 @@ def generate(prompt: str, filename: Path, *, label: str = "AI image") -> ImageRe
         raise RuntimeError(
             "No image provider is configured. Add CLOUDFLARE_API_TOKEN + "
             "CLOUDFLARE_ACCOUNT_ID, FAL_KEY, TOGETHER_API_KEY, DEEPAI_API_KEY, "
-            "or keep an existing GEMINI_API_KEY/HF_TOKEN/Pollinations provider."
+            "or keep GEMINI_API_KEY for Nano Banana, plus any optional fallback provider."
         )
     raise RuntimeError("All AI image providers failed: " + " | ".join(failures[-10:]))
 
