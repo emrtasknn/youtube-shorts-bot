@@ -103,8 +103,9 @@ jobs:
           FAL_KEY: ${{ secrets.FAL_KEY }}
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
           DEEPAI_API_KEY: ${{ secrets.DEEPAI_API_KEY }}
-          IMAGE_PROVIDER_ORDER: ${{ secrets.IMAGE_PROVIDER_ORDER || 'imagen,cloudflare,fal,together,deepai,pollinations_turbo,pollinations_flux,huggingface' }}
-          GEMINI_IMAGE_MODEL: ${{ secrets.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002' }}
+          IMAGE_PROVIDER_ORDER: ${{ secrets.IMAGE_PROVIDER_ORDER || 'gemini,fal,deepai' }}
+          GEMINI_IMAGE_MODEL_ORDER: ${{ secrets.GEMINI_IMAGE_MODEL_ORDER || 'gemini-3.1-flash-image,gemini-3.1-flash-lite-image' }}
+          FAL_IMAGE_MODEL: ${{ secrets.FAL_IMAGE_MODEL || 'fal-ai/flux/schnell' }}
           IMAGE_MAX_ATTEMPTS_PER_PROVIDER: ${{ secrets.IMAGE_MAX_ATTEMPTS_PER_PROVIDER || '1' }}
           IMAGE_PROVIDER_COOLDOWN_SECONDS: ${{ secrets.IMAGE_PROVIDER_COOLDOWN_SECONDS || '1800' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
