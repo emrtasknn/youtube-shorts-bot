@@ -33,6 +33,14 @@ on:
         required: false
         default: ""
         type: string
+      media_mode:
+        description: "Media generation mode: image or video"
+        required: false
+        default: "image"
+        type: choice
+        options:
+          - image
+          - video
   schedule:
     - cron: '0 5 * * *'
 
@@ -114,6 +122,7 @@ jobs:
           BATCH_COUNT: ${{ inputs.batch_count || '10' }}
           CONTENT_TYPE: ${{ inputs.content_type || 'TREND_HISTORY' }}
           CUSTOM_PROMPT: ${{ inputs.custom_prompt || '' }}
+          MEDIA_MODE: ${{ inputs.media_mode || 'image' }}
         run: python pipeline.py
 
       - name: Commit state changes
