@@ -183,7 +183,7 @@ class DummyAudio:
 
 
 class DummyVideoClip:
-    def __init__(self, size=(1080, 1920), duration=25.0, audio=DummyAudio()):
+    def __init__(self, size=(1080, 1920), duration=30.0, audio=DummyAudio()):
         self.size = size
         self.duration = duration
         self.audio = audio
@@ -203,7 +203,7 @@ def test_validate_video_quality_valid_clip(monkeypatch, tmp_path):
     qa = pipeline.validate_video_quality(fake_video)
     assert qa["width"] == 1080
     assert qa["height"] == 1920
-    assert qa["duration"] == 25.0
+    assert qa["duration"] == 30.0
     assert qa["has_audio"] is True
 
 
@@ -336,13 +336,13 @@ def test_evaluate_script_quality_scoring():
 
     # 2. Script lacking hook in scene 1 and loop in scene 7
     bad_scenes = [
-        {"narration": "Ali ata baktı ve gitti.", "image_prompt": "prompt 1"},
+        {"narration": "Bu olayın neden böyle geliştiğini anlamak için yıllarca araştırma yapıldı ve kesin cevap bulunamadı.", "image_prompt": "prompt 1"},
         {"narration": "Hava bugün oldukça güneşliydi ve güzeldi.", "image_prompt": "prompt 2"},
         {"narration": "Yolda yürürken küçük bir kedi gördüler.", "image_prompt": "prompt 3"},
         {"narration": "Kedi ağacın dalına doğru tırmanmaya başladı.", "image_prompt": "prompt 4"},
         {"narration": "Sonra hep birlikte eve geri döndüler.", "image_prompt": "prompt 5"},
         {"narration": "Akşam yemeğinde lezzetli bir çorba içildi.", "image_prompt": "prompt 6"},
-        {"narration": "Ve böylece güzel bir gün sona erdi.", "image_prompt": "prompt 7"},
+        {"narration": "Ve sonunda cevap aslında;", "image_prompt": "prompt 7"},
     ]
     bad_qa = pipeline.evaluate_script_quality(bad_scenes)
     assert any("hook" in issue.lower() for issue in bad_qa["issues"])
@@ -615,6 +615,7 @@ def test_handle_callback_action_script(monkeypatch, tmp_path):
 def test_on_status_command(monkeypatch, tmp_path):
     approvals_file = tmp_path / "test_approvals.json"
     monkeypatch.setattr(pipeline, "APPROVALS_FILE", approvals_file)
+    monkeypatch.setattr(pipeline, "TELEGRAM_CHAT_ID", "998877")
 
     replies = []
     class FakeChat:
@@ -839,7 +840,6 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "get_ambient_music", lambda p, content_analysis=None, memory=None: None)
     monkeypatch.setattr(pipeline, "validate_video_quality", lambda p: {"passed": True})
-    monkeypatch.setattr(pipeline, "save_topic_to_history", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
 
     # Mock the content_memory module functions used by run()
