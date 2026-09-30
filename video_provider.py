@@ -23,7 +23,7 @@ from pathlib import Path
 log = logging.getLogger("shorts-bot.video")
 
 
-DEFAULT_PROVIDER_ORDER = ["omni", "veo31_fast", "veo31_lite", "veo31"]
+DEFAULT_PROVIDER_ORDER = ["omni", "veo31", "veo31_fast", "veo31_lite"]
 
 
 class VideoProviderError(RuntimeError):
