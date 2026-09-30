@@ -123,7 +123,6 @@ def _omni(prompt: str, filename: Path, image_path: Path | None = None) -> VideoR
         "type": "video",
         "aspect_ratio": _env("VIDEO_ASPECT_RATIO", "9:16"),
         "resolution": _env("GEMINI_OMNI_RESOLUTION", "720p"),
-        "delivery": "uri",
     }
 
     try:
@@ -150,29 +149,14 @@ def _omni(prompt: str, filename: Path, image_path: Path | None = None) -> VideoR
         ) from exc
 
     output_video = getattr(interaction, "output_video", None)
-    if output_video is None:
-        raise VideoProviderError(f"{model} returned no video output")
+    data = getattr(output_video, "data", None) if output_video is not None else None
+    if not data:
+        raise VideoProviderError(f"{model} returned no inline video data")
 
-    data = getattr(output_video, "data", None)
-    if data:
+    try:
         _save_bytes(base64.b64decode(data), filename)
-    else:
-        uri = getattr(output_video, "uri", None)
-        if not uri:
-            raise VideoProviderError(f"{model} returned neither inline video data nor a URI")
-        file_name = str(uri).rstrip("/").split("/")[-1]
-        deadline = time.time() + float(_env("GEMINI_VIDEO_URI_TIMEOUT_SECONDS", "600"))
-        while time.time() < deadline:
-            info = client.files.get(name=f"files/{file_name}")
-            state = getattr(getattr(info, "state", None), "name", str(getattr(info, "state", "")))
-            if str(state).upper() == "ACTIVE":
-                break
-            if str(state).upper() == "FAILED":
-                raise VideoProviderError(f"{model} video file processing failed")
-            time.sleep(5)
-        else:
-            raise VideoProviderError(f"{model} video URI did not become ACTIVE in time", retryable=True)
-        client.files.download(file=uri, destination=str(filename))
+    except Exception as exc:
+        raise VideoProviderError(f"{model} returned invalid video data: {exc}") from exc
 
     return VideoResponse("omni", model, filename)
 
