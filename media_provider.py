@@ -146,7 +146,18 @@ def _search_unsplash(query: str, excluded: set[str], intent: dict) -> dict | Non
         if score >= float(os.getenv("REAL_MEDIA_MIN_SEARCH_SCORE", "0.35")):
             links = photo.get("links") or {}
             user = photo.get("user") or {}
-            return _result(
+            links = photo.get("links") or {}
+        download_location = str(links.get("download_location") or "")
+        if download_location:
+            try:
+                requests.get(
+                    download_location,
+                    params={"client_id": _env("UNSPLASH_ACCESS_KEY")},
+                    timeout=TIMEOUT,
+                ).raise_for_status()
+            except requests.RequestException as exc:
+                log.warning("MEDIA: Unsplash download tracking failed: %s", exc)
+        return _result(
                 "unsplash", title=title, image_url=image_url,
                 page_url=str(links.get("html") or ""), query=query,
                 relevance=score, author=str(user.get("name") or ""),
