@@ -868,6 +868,17 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     class FakeAudio:
         duration = 30.0
 
+        def subclipped(self, start=0, end=None):
+            if end is not None:
+                self.duration = max(0.0, end - start)
+            return self
+
+        def transform(self, func, keep_duration=True):
+            return self
+
+        def with_effects(self, effects):
+            return self
+
     monkeypatch.setattr(pipeline, "AudioFileClip", lambda p: FakeAudio())
 
     class FakeVideo:
