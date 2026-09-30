@@ -29,7 +29,7 @@ from telebot import types
 import youtube_uploader
 import content_memory
 import event_memory
-import gemini_config
+import ai_provider
 import content_engine
 import scene_motion
 import prompt_engine
@@ -561,7 +561,7 @@ SADECE şu JSON şemasında çıktı ver:
 }}
 """
     for attempt in range(3):
-        res = gemini_config.call_gemini_with_retry(
+        res = ai_provider.generate(
             prompt=prompt,
             label="topic discovery",
             response_mime_type="application/json"
@@ -820,7 +820,7 @@ Kurallar:
 
     current_prompt = prompt
     for attempt in range(4):
-        res = gemini_config.call_gemini_with_retry(
+        res = ai_provider.generate(
             prompt=current_prompt,
             label="script generation",
             response_mime_type="application/json"
@@ -2287,7 +2287,7 @@ STRICT OUTPUT RULES:
 """
 
     def call_title_model(instruction: str) -> str:
-        response = gemini_config.call_gemini_with_retry(
+        response = ai_provider.generate(
             prompt=instruction,
             label="YouTube title generation",
         )
@@ -2345,7 +2345,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         log.info("First run with V2 engine. Attempting migration...")
         event_memory.migrate_existing_memory()
 
-    log.info("AI provider chain: %s", gemini_config.provider_status())
+    log.info("AI provider chain: %s", ai_provider.provider_status())
     log.info("1/8 Content Discovery | type=%s", content_type)
     if content_type == "TREND_HISTORY":
         discovery_result = event_memory.run_discovery_pipeline()
