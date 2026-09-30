@@ -124,6 +124,73 @@ def build_ai_prompt(
     return " ".join(parts)
 
 
+def build_ai_video_prompt(
+    scene: dict,
+    topic_title: str,
+    event_context: dict | None = None,
+) -> str:
+    """Build a single-shot generative-video prompt from the same storyboard used for images."""
+    ctx = event_context or {}
+    intent = scene.get("visual_intent", {})
+
+    parts = [
+        "Create a single continuous unbroken historical documentary shot.",
+        "Do not introduce scene cuts, montages, text overlays, logos, watermarks, or modern objects.",
+    ]
+
+    base = str(scene.get("image_prompt", "")).strip()
+    if base:
+        parts.append(base)
+
+    visual_fact = str(scene.get("visual_fact", "")).strip()
+    if visual_fact:
+        parts.append(f"Visual fact: {visual_fact}.")
+
+    primary = str(intent.get("primary_subject", "")).strip()
+    action = str(intent.get("visual_action", "")).strip()
+    context = str(intent.get("scene_context", "")).strip()
+    shot = str(intent.get("shot_type", "")).strip()
+    composition = str(intent.get("composition", "")).strip()
+    motion = str(intent.get("video_motion", "") or intent.get("camera_motion", "")).strip()
+
+    if primary:
+        parts.append(f"Primary subject: {primary}.")
+    if action:
+        parts.append(f"Action: {action}.")
+    if context:
+        parts.append(f"Setting: {context}.")
+    if shot:
+        parts.append(f"Shot: {shot}.")
+    if composition:
+        parts.append(f"Composition: {composition}.")
+    if motion:
+        parts.append(f"Camera movement: {motion}.")
+    else:
+        parts.append("Camera movement: subtle, physically plausible motion that preserves the main historical subject.")
+
+    must_show = [str(x).strip() for x in intent.get("must_show", []) if str(x).strip()]
+    avoid = [str(x).strip() for x in intent.get("avoid", []) if str(x).strip()]
+    if must_show:
+        parts.append(f"Must visibly include: {', '.join(must_show)}.")
+    if avoid:
+        parts.append(f"Avoid: {', '.join(avoid)}.")
+
+    historical = _build_historical_context(ctx)
+    if historical:
+        parts.append(historical)
+
+    if topic_title:
+        parts.append(f"Historical event: {topic_title}.")
+
+    parts.append(
+        "Maintain period-accurate clothing, architecture, props, geography and lighting. "
+        "Photorealistic cinematic documentary reconstruction. "
+        "The first frame must immediately communicate the event-specific action; "
+        "motion should be restrained and coherent across the whole shot."
+    )
+    return " ".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Historical context helpers
 # ---------------------------------------------------------------------------

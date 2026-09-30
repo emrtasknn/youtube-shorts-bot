@@ -6,15 +6,12 @@ import os
 import random
 import re
 import time
-import urllib.parse
 from pathlib import Path
 
 import edge_tts
 import numpy as np
 import requests
 import telebot
-from huggingface_hub import InferenceClient
-from google import genai
 from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
@@ -23,6 +20,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     concatenate_audioclips,
+    concatenate_videoclips,
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
@@ -31,13 +29,15 @@ from telebot import types
 import youtube_uploader
 import content_memory
 import event_memory
-import gemini_config
+import ai_provider
 import content_engine
 import scene_motion
 import prompt_engine
 import visual_qc
 import visual_telemetry
 import scene_transitions
+import image_provider
+import video_provider
 
 
 # -----------------------------
@@ -45,7 +45,6 @@ import scene_transitions
 # -----------------------------
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "output"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-TOPICS_HISTORY_FILE = Path(os.getenv("TOPICS_HISTORY_FILE", "topics_history.json"))
 APPROVALS_FILE = Path(os.getenv("APPROVALS_FILE", "approvals.json"))
 
 # Novelty engine settings
@@ -73,6 +72,8 @@ WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
 REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
+MEDIA_MODE_DEFAULT = os.getenv("MEDIA_MODE", "image").strip().lower()
+ALLOWED_MEDIA_MODES = {"image", "video"}
 # Atmosphere shots are useful as transitions, but should never replace the
 # factual core of a short. Two or three are reviewable warnings; four or more
 # indicate that the storyboard is no longer carrying enough event detail.
@@ -172,7 +173,6 @@ if not TELEGRAM_BOT_TOKEN:
 if not TELEGRAM_CHAT_ID:
     raise RuntimeError("TELEGRAM_CHAT_ID is missing")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 logging.basicConfig(
@@ -384,208 +384,13 @@ def validate_visual_storyboard(scenes: list[dict]) -> dict:
 # -----------------------------
 # Topic & Content engine
 # -----------------------------
-def load_topic_history(history_path: Path | None = None) -> list[dict]:
-    """Load previously covered topics to avoid content repetition."""
-    target_path = history_path if history_path is not None else TOPICS_HISTORY_FILE
-    if not target_path.exists():
-        return []
-    try:
-        data = json.loads(target_path.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except Exception as exc:
-        log.warning("Could not read topic history: %s", exc)
-        return []
-
-
-def save_topic_to_history(topic_entry: dict, history_path: Path | None = None):
-    """Save newly produced topic to persistent history."""
-    target_path = history_path if history_path is not None else TOPICS_HISTORY_FILE
-    history = load_topic_history(target_path)
-    history.append(topic_entry)
-    try:
-        target_path.write_text(
-            json.dumps(history, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except Exception as exc:
-        log.warning("Could not save topic to history: %s", exc)
 
 
 # -----------------------------
 # Curated Fallback Stories (Resilient & Pre-timed)
 # -----------------------------
-FALLBACK_STORIES = [
-    {
-        "title": "Kayıp Koloni Roanoke Gizemi",
-        "hook_question": "115 İngiliz yerleşimci bir gecede nereye kayboldu?",
-        "viral_score": 9,
-        "visual_appeal": 9,
-        "scenes": [
-            {
-                "narration": "1590 yılında Roanoke adasındaki 115 yerleşimci bir gecede sırra kadem bastı.",
-                "image_prompt": "Cinematic vertical 9:16 shot of an abandoned wooden colonial fort on a misty island, 1590 era, photorealistic documentary style, 8k",
-            },
-            {
-                "narration": "Evler ve eşyalar yerli yerindeydi, fakat tek bir insan bile yoktu.",
-                "image_prompt": "Eerie empty village with silent wooden cabins, fog rolling through dirt streets, no people, dramatic lighting, vertical 9:16",
-            },
-            {
-                "narration": "Ne bir çatışma izi ne de tek bir mezar bulundu.",
-                "image_prompt": "Close-up interior of a colonial wooden cottage, warm hearth, untouched dinner on wooden table, vertical 9:16, cinematic",
-            },
-            {
-                "narration": "Bulunan tek ipucu bir ağaca kazınan esrarengiz kelimeydi: Kroatoan!",
-                "image_prompt": "Dramatic close-up of a rustic wooden tree trunk with mysterious word CROATOAN carved deeply into bark, dark moody lighting, vertical 9:16",
-            },
-            {
-                "narration": "Yüzyıllar süren araştırmalar bile bu insanların nereye gittiğini çözemedi.",
-                "image_prompt": "Ancient faded nautical parchment map showing North Carolina coast with mysterious symbols, vertical 9:16, historical documentary style",
-            },
-            {
-                "narration": "Kayıp koloninin gizemi bugün hâlâ aydınlatılamadı.",
-                "image_prompt": "Modern archaeologists excavating historical earth beneath tall trees, moody sunset light, vertical 9:16, cinematic",
-            },
-            {
-                "narration": "Ve tarihin en büyük sırrının başladığı yer aslında;",
-                "image_prompt": "Mysterious ghostly ship sailing into thick white fog under moonlight, vertical 9:16, photorealistic, 8k",
-            },
-        ],
-    },
-    {
-        "title": "Hayalet Gemi Mary Celeste",
-        "hook_question": "Okyanusun ortasında terk edilen mürettebata ne oldu?",
-        "viral_score": 9,
-        "visual_appeal": 9,
-        "scenes": [
-            {
-                "narration": "1872 yılında Mary Celeste gemisi Atlas Okyanusu'nda rotasız sürüklenirken bulundu.",
-                "image_prompt": "Cinematic vertical 9:16 shot of a 19th-century merchant sailing ship drifting alone in misty ocean, moody cinematic lighting, photorealistic 8k",
-            },
-            {
-                "narration": "Gemiye çıkan denizciler akılalmaz bir manzarayla karşılaştı.",
-                "image_prompt": "Sailors boarding an eerie wooden ship deck, stormy sky, dark ocean waves, vertical 9:16, documentary style",
-            },
-            {
-                "narration": "Kargo ve yiyecekler tamdı, fakat kaptan dahil 10 kişi tamamen yok olmuştu.",
-                "image_prompt": "Interior cabin of sailing ship, charts on wooden desk, untouched tea cup, vertical 9:16, hyperrealistic",
-            },
-            {
-                "narration": "Tek filika kayıptı ama gemiyi terk etmelerini gerektirecek hiçbir hasar yoktu.",
-                "image_prompt": "Empty lifeboat davits on a rocking ship hull, turbulent dark Atlantic water, vertical 9:16, cinematic realism",
-            },
-            {
-                "narration": "Onları canavarlar mı yoksa açıklanamayan bir delilik mi yuttu?",
-                "image_prompt": "Dark shadowy ocean horizon with glowing bioluminescence, fog, mysterious silhouette, vertical 9:16",
-            },
-            {
-                "narration": "Yüz elli yıldır bu hayalet geminin sırrını çözen tek bir insan çıkmadı.",
-                "image_prompt": "Vintage maritime court investigation scene, candlelit room with old documents, vertical 9:16",
-            },
-            {
-                "narration": "Çünkü okyanusun en derin gizemleri aslında;",
-                "image_prompt": "Endless deep ocean water reflecting moonlight through storm clouds, vertical 9:16, 8k render",
-            },
-        ],
-    },
-    {
-        "title": "Göbeklitepe'nin Taş Çağı Sırrı",
-        "hook_question": "12 bin yıl önce bu devasa tapınakları kim inşa etti?",
-        "viral_score": 9,
-        "visual_appeal": 9,
-        "scenes": [
-            {
-                "narration": "Tarihin sıfır noktası Göbeklitepe, bildiğimiz tüm tarihi kökünden sarstı.",
-                "image_prompt": "Cinematic vertical 9:16 wide view of Göbeklitepe stone pillars at sunrise, ancient mystical atmosphere, 8k photorealistic",
-            },
-            {
-                "narration": "12 bin yıl önce, henüz tarım bile yokken devasa T biçimli sütunlar dikildi.",
-                "image_prompt": "Ancient prehistoric hunter-gatherers lifting megalithic limestone T-pillar with wooden tools, vertical 9:16, cinematic",
-            },
-            {
-                "narration": "Tonlarca ağırlıktaki taşların üzerine kusursuz hayvan kabartmaları işlenmişti.",
-                "image_prompt": "Close-up of intricately carved lion and vulture reliefs on ancient megalithic pillar, vertical 9:16, detailed texture",
-            },
-            {
-                "narration": "Daha da şaşırtıcı olanı, bu devasa kompleks bilinçli olarak gömülmüştü!",
-                "image_prompt": "Ancient builders covering circular stone monument with hill of earth, torches glowing at twilight, vertical 9:16",
-            },
-            {
-                "narration": "İnsanlar bu kutsal alanı neden kendi elleriyle toprağa gömdü?",
-                "image_prompt": "Atmospheric shot of excavated circular megalith enclosure beneath starry night sky, vertical 9:16, cinematic",
-            },
-            {
-                "narration": "Arkeologlar hâlâ bu sorunun cevabını arıyor.",
-                "image_prompt": "Archaeologist dusting ancient carved limestone relief with small brush, soft warm light, vertical 9:16",
-            },
-            {
-                "narration": "Ve insanlığın gerçek kökeni tam da burada gizli;",
-                "image_prompt": "Mystical ancient sunrise over the plains of Mesopotamia behind stone pillars, vertical 9:16, photorealistic",
-            },
-        ],
-    },
-]
 
 
-def discover_and_score_topics(history_titles: list[str], content_aware_prompt: str = "") -> dict:
-    """Discover candidate viral history topics, score them, and pick the best unseen one."""
-    negative_prompt = ""
-    if history_titles:
-        recent = ", ".join(history_titles[-30:])
-        negative_prompt = f"\nBu konular daha önce işlendi, bunları KESİNLİKLE SEÇME VEYA TEKRAR ETME:\n{recent}\n"
-
-    # Content-aware enhancement: include previously covered angles
-    content_awareness = ""
-    if content_aware_prompt:
-        content_awareness = f"\n{content_aware_prompt}\n"
-
-    prompt = f"""
-Sen YouTube Shorts için viral tarih içerikleri keşfeden uzman bir araştırmacısın.
-İzleyiciyi ilk saniyeden ekrana kilitleyecek, az bilinen, şaşırtıcı veya esrarengiz 3 farklı tarihsel olay öner.
-{negative_prompt}
-{content_awareness}
-
-Her konu için şu alanları sağla:
-- "title": Türkçe çarpıcı kısa başlık (örn: "Kayıp 9. Roma Lejyonu")
-- "hook_question": İlk 2 saniyede sorulacak şok edici soru (örn: "5000 Roma askeri İskoçya sislerinde nasıl tek bir iz bırakmadan yok oldu?")
-- "viral_score": 1-10 arası viral potansiyel puanı (sayı)
-- "visual_appeal": 1-10 arası görsel zenginlik puanı (sayı)
-
-SADECE şu JSON şemasında çıktı ver:
-{{
-  "topics": [
-    {{
-      "title": "...",
-      "hook_question": "...",
-      "viral_score": 9,
-      "visual_appeal": 9
-    }}
-  ]
-}}
-"""
-    for attempt in range(3):
-        res = gemini_config.call_gemini_with_retry(
-            prompt=prompt,
-            label="topic discovery",
-            response_mime_type="application/json"
-        )
-        if res and res.text:
-            try:
-                parsed = json.loads(res.text.strip())
-                topics = parsed.get("topics", [])
-                if topics and isinstance(topics, list):
-                    past_lower = {t.lower() for t in history_titles if isinstance(t, str)}
-                    unseen = [t for t in topics if t.get("title", "").lower() not in past_lower]
-                    candidates = unseen if unseen else topics
-                    best = max(
-                        candidates,
-                        key=lambda t: float(t.get("viral_score", 5)) + float(t.get("visual_appeal", 5)),
-                    )
-                    log.info("Selected topic: %s (score: %s)", best.get("title"), best.get("viral_score"))
-                    return best
-            except Exception as exc:
-                log.warning("Topic discovery JSON parse failed: %s", exc)
-
-    raise RuntimeError("Topic discovery failed after all attempts. Pipeline aborting safely.")
 
 
 def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> dict:
@@ -601,7 +406,10 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     hook_indicators = ["?", "nasıl", "neden", "kim", "nerede", "hiç", "inanılmaz", "gizem", "şok", "esrarengiz", "fakat"]
     passive_date_openers = ("1814 yılında", "1872 yılında", "191", "18", "17")
     has_hook_signal = any(ind in s1.lower() for ind in hook_indicators)
-    if (not has_hook_signal and s1.lower().startswith(passive_date_openers)) or len(s1.split()) > 14:
+    if not has_hook_signal:
+        score -= 20
+        issues.append("Scene 1 hook is missing; prefer an immediate surprise, scale, consequence, or question")
+    elif s1.lower().startswith(passive_date_openers) or len(s1.split()) > 14:
         score -= 20
         issues.append("Scene 1 hook is too passive/date-led or too long; prefer immediate surprise, scale, or question")
 
@@ -822,7 +630,7 @@ Kurallar:
 
     current_prompt = prompt
     for attempt in range(4):
-        res = gemini_config.call_gemini_with_retry(
+        res = ai_provider.generate(
             prompt=current_prompt,
             label="script generation",
             response_mime_type="application/json"
@@ -881,10 +689,6 @@ Kurallar:
                 )
 
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
-
-
-# Alias for the content_memory module to avoid name collision with local variables
-content_memory_module = content_memory
 
 
 
@@ -1043,128 +847,67 @@ def crop_watermark_zone(filename: Path):
         final_img.save(filename, quality=95)
 
 
-def try_imagen3_generation(prompt_text: str, filename: Path) -> bool:
-    """Attempt high-resolution native 9:16 image generation via Google GenAI Imagen 3."""
-    try:
-        if not hasattr(client, "models") or not hasattr(client.models, "generate_images"):
-            return False
-        result = client.models.generate_images(
-            model="imagen-3.0-generate-002",
-            prompt=prompt_text,
-            config=dict(
-                number_of_images=1,
-                output_mime_type="image/jpeg",
-                aspect_ratio="9:16",
-            ),
-        )
-        if result and getattr(result, "generated_images", None):
-            image_bytes = result.generated_images[0].image.image_bytes
-            filename.write_bytes(image_bytes)
-            with Image.open(filename) as img:
-                img = img.convert("RGB").resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
-                img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=110, threshold=3))
-                img.save(filename, quality=95)
-            log.info("Successfully generated native 9:16 image with Imagen 3: %s", filename.name)
-            return True
-    except Exception as exc:
-        log.debug("Imagen 3 generation skipped/failed: %s", exc)
-    return False
-
-
-def _save_generated_image_bytes(image_bytes: bytes, filename: Path, crop_watermark: bool = False):
-    if not image_bytes or len(image_bytes) <= 5000:
-        raise RuntimeError("Generated image response is unexpectedly small")
-    filename.write_bytes(image_bytes)
-    if crop_watermark:
-        crop_watermark_zone(filename)
-    return filename
-
-
-def try_pollinations_generation(prompt_text: str, filename: Path, model: str) -> Path:
-    cleaned = urllib.parse.quote(prompt_text)
-    url = (
-        f"https://image.pollinations.ai/prompt/{cleaned}"
-        f"?width=1024&height=1024&model={urllib.parse.quote(model)}&nologo=true"
-    )
-
-    def request_image():
-        response = requests.get(url, timeout=75)
-        response.raise_for_status()
-        return _save_generated_image_bytes(response.content, filename, crop_watermark=True)
-
-    return retry_call(
-        request_image,
-        attempts=2,
-        base_delay=4,
-        label=f"Pollinations {model} image generation",
-    )
-
-
-def try_huggingface_generation(prompt_text: str, filename: Path) -> Path | None:
-    """Last-resort cloud image provider using the user's Hugging Face free credits."""
-    if not HF_TOKEN:
-        log.info("Hugging Face image fallback skipped: HF_TOKEN is not configured")
-        return None
-
-    def request_image():
-        client = InferenceClient(
-            api_key=HF_TOKEN,
-            provider="auto",
-        )
-        image = client.text_to_image(
-            prompt_text,
-            model=HF_IMAGE_MODEL,
-            width=1024,
-            height=1024,
-        )
-        if image is None:
-            raise RuntimeError("Hugging Face returned no image")
-        image.save(filename, format="PNG")
-        return filename
-
-    try:
-        return retry_call(
-            request_image,
-            attempts=2,
-            base_delay=5,
-            label=f"Hugging Face {HF_IMAGE_MODEL} image generation",
-        )
-    except Exception as exc:
-        log.warning("Hugging Face image fallback failed: %s", exc)
-        return None
-
-
 def download_ai_image(prompt_text: str, filename: Path):
-    # Provider chain:
-    # 1) Google Imagen 3 (already available through the existing Gemini setup)
-    # 2) Pollinations turbo
-    # 3) Pollinations flux
-    # 4) Hugging Face Inference Providers (only when HF_TOKEN exists)
-    if try_imagen3_generation(prompt_text, filename):
-        return filename
+    """Generate one image through the centralized provider router.
 
-    for model in ("turbo", "flux"):
-        try:
-            result = try_pollinations_generation(prompt_text, filename, model)
-            log.info("AI IMAGE PROVIDER: Pollinations/%s", model)
-            return result
-        except Exception as exc:
-            log.warning("Pollinations/%s unavailable: %s", model, exc)
-
-    hf_result = try_huggingface_generation(prompt_text, filename)
-    if hf_result:
-        log.info("AI IMAGE PROVIDER: Hugging Face/%s", HF_IMAGE_MODEL)
-        return hf_result
-
-    raise RuntimeError(
-        "All AI image providers failed: Imagen 3, Pollinations turbo, "
-        "Pollinations flux, and Hugging Face"
+    Provider credentials and order are controlled by IMAGE_PROVIDER_ORDER.
+    The router guarantees that this function returns only after a valid image
+    has been written; otherwise it raises a controlled error.
+    """
+    result = image_provider.generate(
+        prompt_text,
+        filename,
+        label=f"AI image generation {filename.name}",
     )
+    log.info(
+        "AI IMAGE PROVIDER: %s/%s -> %s",
+        result.provider,
+        result.model,
+        result.path.name,
+    )
+    return result.path
 
 
 # -----------------------------
 # Video composition
 # -----------------------------
+
+def build_generated_video_clip(video_path: Path, start_time: float, end_time: float):
+    """Load a generated scene video, normalize to 1080x1920 and fit its scene duration."""
+    duration = max(end_time - start_time, 0.2)
+    clip = VideoFileClip(str(video_path)).without_audio()
+
+    if clip.size != (VIDEO_WIDTH, VIDEO_HEIGHT):
+        clip = clip.resized((VIDEO_WIDTH, VIDEO_HEIGHT))
+
+    if clip.duration < duration - 0.05:
+        repeats = max(1, int(np.ceil(duration / max(clip.duration, 0.1))))
+        clip = concatenate_videoclips([clip] * repeats, method="compose")
+
+    clip = clip.subclipped(0, min(duration, clip.duration)).with_start(start_time)
+    return clip
+
+
+def generate_ai_video(scene: dict, topic_title: str, event_context: dict, filename: Path):
+    """Generate one event-specific scene clip through the Google video router."""
+    prompt = prompt_engine.build_ai_video_prompt(
+        scene=scene,
+        topic_title=topic_title,
+        event_context=event_context,
+    )
+    result = video_provider.generate(
+        prompt,
+        filename,
+        label=f"AI video generation {filename.name}",
+    )
+    scene["video_generation"] = {
+        "provider": result.provider,
+        "model": result.model,
+        "path": str(result.path),
+    }
+    return result.path
+
+
 MOTION_TYPES = ["zoom_in", "pan_left_right", "zoom_out", "pan_right_left"]
 
 
@@ -1180,7 +923,7 @@ def enhance_source_image(image_path: Path, source_type: str = "", visual_intent:
             img = source.convert("RGB")
         original_size = img.size
 
-        if source_type in ("wikimedia", "openverse"):
+        if source_type in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             if visual_type in ("map", "document", "artifact"):
                 img = ImageEnhance.Contrast(img).enhance(1.04)
                 img = ImageEnhance.Sharpness(img).enhance(1.06)
@@ -1629,8 +1372,8 @@ def get_ambient_music(music_path: Path, content_analysis: dict | None = None, me
 
     # 1. Content-aware selection from local tracks (Phase 4)
     if content_analysis and AUDIO_ASSETS_DIR.exists():
-        recently_used = content_memory_module.get_recently_used_audio(memory or [])
-        selected = content_memory_module.select_audio_for_content(
+        recently_used = content_memory.get_recently_used_audio(memory or [])
+        selected = content_memory.select_audio_for_content(
             analysis=content_analysis,
             audio_dir=AUDIO_ASSETS_DIR,
             recently_used=recently_used,
@@ -1840,12 +1583,17 @@ def send_to_telegram(
     hook_line = f"❓ _{hook_question}_\n\n" if hook_question else ""
     type_line = f"{content_label}\n" if content_label else ""
 
+    media_line = (
+        "🎬 AI Video + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+        if os.getenv("MEDIA_MODE", "image").lower() == "video"
+        else "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+    )
     caption = (
         f"{type_line}"
         f"🔥 *{topic_title}*\n\n"
         f"{hook_line}"
         f"⏱ Süre: {total_duration:.1f}s | {SCENE_COUNT} Sahne\n"
-        "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+        f"{media_line}"
         f"{full_text[:280]}..."
     )
 
@@ -2205,7 +1953,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
                 f"Visual QA failed: scene {idx} planned event specificity {planned_specificity:.2f} < 0.70"
             )
 
-        if source_type in ("wikimedia", "openverse"):
+        if source_type in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             relevance = float(source.get("relevance_score", 0))
             specificity = float(source.get("event_specificity", 0))
             density = float(source.get("information_density", 0))
@@ -2267,7 +2015,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
     for scene in factual_scenes:
         observed_source_quality = (
             scene["relevance_score"]
-            if scene["source_type"] in ("wikimedia", "openverse")
+            if scene["source_type"] in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash")
             else scene["planned_event_specificity"]
         )
         factual_quality_scores.append(
@@ -2293,7 +2041,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
         "passed": True,
         "decision": "PASS_WITH_WARNINGS" if warnings else "PASS",
         "scene_count": len(results),
-        "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse")),
+        "real_visuals": sum(1 for item in results if item["source_type"] in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash")),
         "ai_reconstructions": sum(1 for item in results if item["source_type"] == "ai_reconstruction"),
         "atmosphere_scenes": atmosphere_count,
         "factual_scene_quality_score": round(total_quality_score, 3),
@@ -2336,11 +2084,15 @@ def _looks_turkish_title(text: str) -> bool:
 def _sanitize_youtube_title(raw: str) -> str:
     """Normalize a model response into a single Shorts title."""
     value = str(raw or "").strip()
-    value = value.strip('"').strip("'").strip()
-    value = re.sub(r"^(?:Title|Başlık)\\s*:\\s*", "", value, flags=re.IGNORECASE).strip()
-    value = re.sub(r"#Shorts\\b", "", value, flags=re.IGNORECASE).strip()
+    value = re.sub(r"^\s*(?:Title|Başlık)\s*:\s*", "", value, flags=re.IGNORECASE).strip()
+    value = re.sub(r"#Shorts\b", "", value, flags=re.IGNORECASE).strip()
+    value = value.strip().strip('"').strip("'").strip()
+    if value.startswith('"') and '"' in value[1:]:
+        value = value[1:value.find('"', 1)]
+    elif value.startswith("'") and "'" in value[1:]:
+        value = value[1:value.find("'", 1)]
     value = value.splitlines()[0].strip() if value else ""
-    value = re.sub(r"\\s+", " ", value)
+    value = re.sub(r"\s+", " ", value)
     if len(value) > 90:
         value = value[:87].rstrip(" .,!?;:") + "..."
     return value[:90].strip()
@@ -2387,7 +2139,7 @@ STRICT OUTPUT RULES:
 """
 
     def call_title_model(instruction: str) -> str:
-        response = gemini_config.call_gemini_with_retry(
+        response = ai_provider.generate(
             prompt=instruction,
             label="YouTube title generation",
         )
@@ -2434,17 +2186,28 @@ Do not invent facts.
 # -----------------------------
 # Main pipeline
 # -----------------------------
-def run(auto_publish: bool | None = None, run_id: str | None = None, content_type: str = "TREND_HISTORY", custom_prompt: str = "", exclude_titles: list[str] | None = None):
+def run(
+    auto_publish: bool | None = None,
+    run_id: str | None = None,
+    content_type: str = "TREND_HISTORY",
+    custom_prompt: str = "",
+    exclude_titles: list[str] | None = None,
+    media_mode: str | None = None,
+):
     run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     visual_warnings: list = []
+    media_mode = (media_mode or os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT)).strip().lower()
+    if media_mode not in ALLOWED_MEDIA_MODES:
+        raise ValueError(f"Unsupported MEDIA_MODE={media_mode!r}; use image or video")
     # Run migration if needed
     if not event_memory.EVENT_MEMORY_FILE.exists():
         log.info("First run with V2 engine. Attempting migration...")
         event_memory.migrate_existing_memory()
 
+    log.info("AI provider chain: %s", ai_provider.provider_status())
     log.info("1/8 Content Discovery | type=%s", content_type)
     if content_type == "TREND_HISTORY":
         discovery_result = event_memory.run_discovery_pipeline()
@@ -2493,12 +2256,12 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     log.info("Generated YouTube title: %s", youtube_title)
 
     log.info("4/8 Analyzing script content for metadata")
-    candidate_analysis = content_memory_module.analyze_script_content(
+    candidate_analysis = content_memory.analyze_script_content(
         scenes=scenes,
         topic_title=topic_compat["title"],
     )
 
-    diversity_report = content_memory_module.evaluate_visual_diversity(scenes)
+    diversity_report = content_memory.evaluate_visual_diversity(scenes)
     visual_warnings = diversity_report.get("warnings", [])
     log.info(
         "Visual diversity evaluated — score: %.2f (acceptable=%s, types=%d, shots=%d, warnings=%d)",
@@ -2509,7 +2272,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         len(visual_warnings),
     )
     if visual_warnings:
-        scenes = content_memory_module.diversify_image_prompts(scenes)
+        scenes = content_memory.diversify_image_prompts(scenes)
 
     log.info("5/8 Generating voice and word timestamps")
     voice_path = run_dir / "voice.mp3"
@@ -2553,7 +2316,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     storyboard_qa = validate_visual_storyboard(scenes)
     log.info("Visual storyboard QA (final scenes): %s", storyboard_qa)
 
-    log.info("6/8 Resolving visual sources and generating images")
+    log.info("6/8 Resolving visuals and generating %s scenes", media_mode)
     scene_clips = []
 
     # V2: construct event_context once here (values are constant across scenes).
@@ -2602,6 +2365,40 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
 
+        # Video mode is the primary generative-media path. If Google video
+        # generation is unavailable or blocked for a scene, fall back to the
+        # existing image compositor for that scene only.
+        if media_mode == "video":
+            video_path = run_dir / f"scene_{i:02d}.mp4"
+            try:
+                generate_ai_video(
+                    scene=scene,
+                    topic_title=topic_compat["title"],
+                    event_context=event_context,
+                    filename=video_path,
+                )
+                scene_clips.append(
+                    build_generated_video_clip(video_path, start, end)
+                )
+                log.info(
+                    "Scene %d video generation passed via %s/%s",
+                    i,
+                    scene.get("video_generation", {}).get("provider", ""),
+                    scene.get("video_generation", {}).get("model", ""),
+                )
+                continue
+            except Exception as exc:
+                scene["video_generation"] = {
+                    "status": "failed",
+                    "error": str(exc),
+                    "fallback": "image",
+                }
+                log.warning(
+                    "Scene %d video generation failed; falling back to image mode: %s",
+                    i,
+                    exc,
+                )
+
         # V1.4 visual loop: natural narration, but return to the opening visual.
         image_downloaded = False
         visual_loop_reused = False
@@ -2614,7 +2411,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
                 log.info("Scene %d uses Scene 1 visual for a clean visual loop.", i)
 
         # Download historical/web images or fallback to AI
-        if not visual_loop_reused and v_source.get("source_type") in ("wikimedia", "openverse"):
+        if not visual_loop_reused and v_source.get("source_type") in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             try:
                 img_url = v_source.get("image_url")
                 resp = requests.get(
@@ -2645,7 +2442,11 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         # V1.4.1: source metadata is part of the visual QA trail.
         scene["resolved_visual"] = {
             "source_type": v_source.get("source_type", ""),
+            "provider": v_source.get("provider", v_source.get("source_type", "")),
             "title": v_source.get("title", ""),
+            "page_url": v_source.get("page_url", ""),
+            "author": v_source.get("author", ""),
+            "attribution_required": v_source.get("attribution_required", False),
             "relevance_score": v_source.get("relevance_score", 0.0),
             "event_specificity": v_source.get("event_specificity", 0.0),
             "information_density": v_source.get("information_density", 0.0),
@@ -2671,10 +2472,16 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             )
             scene["image_qc"] = qc_result
             if not qc_result.get("valid", True):
-                log.warning(
-                    "Scene %d: image QC did not pass after %d attempt(s) (%s); "
-                    "proceeding with available image.",
-                    i, qc_result.get("attempts", 1), qc_result.get("reason", ""),
+                # Never enter enhancement/compositing without a real image.
+                # The old behavior attempted to continue and later crashed
+                # with FileNotFoundError in enhance_source_image().
+                reason = qc_result.get("reason", "unknown")
+                log.error(
+                    "Scene %d: image generation/QC failed after %d attempt(s): %s",
+                    i, qc_result.get("attempts", 1), reason,
+                )
+                raise RuntimeError(
+                    f"Scene {i:02d} image generation failed after provider fallback/QC: {reason}"
                 )
             else:
                 log.info(
@@ -2752,7 +2559,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     ).with_duration(total_duration)
 
     log.info("8/8 Mixing audio (content-aware selection + real ducking)")
-    memory = content_memory_module.load_content_memory()
+    memory = content_memory.load_content_memory()
     music_path = get_ambient_music(
         run_dir / "bg_music.mp3",
         content_analysis=candidate_analysis,
@@ -2778,7 +2585,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             fade_out_len = min(1.5, total_duration / 4)
 
             # Use moviepy's make_frame to apply true ducking function
-            ducking_fn = content_memory_module.compute_ducking_volume(
+            ducking_fn = content_memory.compute_ducking_volume(
                 narration_words=words_data,
                 total_duration=total_duration,
                 base_volume=0.18,
@@ -2862,7 +2669,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     topic_compat["event_id"] = event_record.get("event_id", "")
 
     # ── Legacy Content Memory ──
-    content_entry = content_memory_module.build_content_entry(
+    content_entry = content_memory.build_content_entry(
         topic=topic_compat,
         scenes=scenes,
         analysis=candidate_analysis,
@@ -2872,7 +2679,26 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     content_entry["voice_profile"] = voice_profile_name
     content_entry["ending_strategy"] = scenes[-1].get("ending_strategy", "")
     content_entry["event_id"] = event_record["event_id"]
-    content_memory_module.save_content_entry(content_entry)
+    content_memory.save_content_entry(content_entry)
+
+    # Build reusable attribution records for real-media sources.
+    media_credits = []
+    seen_credit_urls = set()
+    for src in visual_sources:
+        source_type = str(src.get("source_type", "")).lower()
+        if source_type not in {"pexels", "pixabay", "unsplash"}:
+            continue
+        page_url = str(src.get("page_url", "")).strip()
+        if not page_url or page_url in seen_credit_urls:
+            continue
+        seen_credit_urls.add(page_url)
+        media_credits.append({
+            "provider": source_type,
+            "title": str(src.get("title", "")).strip(),
+            "author": str(src.get("author", "")).strip(),
+            "page_url": page_url,
+        })
+    topic_compat["real_media_credits"] = media_credits
 
     metadata = {
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -2888,6 +2714,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         "qa": video_qa,
         "content_analysis": candidate_analysis,
         "audio_track": selected_audio_track,
+        "media_mode": media_mode,
         "audio_mix_mode": audio_mix_mode,
         "sfx": sfx_records,
         "sfx_config": {
@@ -2902,6 +2729,8 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             "pitch": voice_profile["pitch"],
         },
         "visual_sources": visual_sources,
+        "media_mode": media_mode,
+        "real_media_credits": media_credits,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_storyboard_qa": storyboard_qa,
         "visual_qa": visual_qa,
@@ -2953,7 +2782,11 @@ if __name__ == "__main__":
         requested_type = os.getenv("CONTENT_TYPE", "TREND_HISTORY").strip().upper()
         custom_prompt = os.getenv("CUSTOM_PROMPT", "").strip()
         if batch_count == 1:
-            run(content_type=requested_type, custom_prompt=custom_prompt)
+            run(
+                content_type=requested_type,
+                custom_prompt=custom_prompt,
+                media_mode=os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT),
+            )
         else:
             batch_stamp = time.strftime("%Y%m%d_%H%M%S")
             plan = content_engine.daily_plan()[:batch_count]
@@ -2970,6 +2803,7 @@ if __name__ == "__main__":
                         content_type=content_type,
                         custom_prompt=custom_prompt if content_type == "CUSTOM" else "",
                         exclude_titles=produced_titles,
+                        media_mode=os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT),
                     )
                     successful += 1
                 except Exception:

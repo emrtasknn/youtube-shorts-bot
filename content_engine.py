@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import gemini_config
+import ai_provider
 
 log = logging.getLogger("shorts-bot.content")
 
@@ -140,7 +140,7 @@ Kurallar:
 
 def build_candidate(content_type: str, custom_prompt: str = "", date_str: str = "", exclude_titles: list[str] | None = None) -> dict:
     prompt = _candidate_prompt(content_type, custom_prompt, date_str, exclude_titles)
-    result = gemini_config.call_gemini_with_retry(
+    result = ai_provider.generate(
         prompt=prompt,
         label=f"content candidate: {content_type}",
         response_mime_type="application/json",

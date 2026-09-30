@@ -236,3 +236,28 @@ def test_geo_unknown_returns_generic():
 
 def test_geo_empty_returns_empty():
     assert prompt_engine.geographic_context("") == ""
+
+
+def test_build_ai_video_prompt_is_single_shot_and_uses_event_context():
+    prompt = prompt_engine.build_ai_video_prompt(
+        {
+            "image_prompt": "A 1908 Siberian forest after the blast.",
+            "visual_fact": "The blast wave knocked down trees.",
+            "visual_role": "aftermath",
+            "visual_intent": {
+                "primary_subject": "fallen trees",
+                "visual_action": "trees visibly knocked down by a blast wave",
+                "scene_context": "remote Siberian forest",
+                "shot_type": "wide establishing shot",
+                "composition": "fallen trunks radiating away from the blast center",
+                "must_show": ["flattened trees", "forest floor"],
+                "avoid": ["modern machinery"],
+            },
+        },
+        "The Tunguska Event",
+        {"date": "1908", "location": "Siberia, Russia"},
+    )
+    assert "single continuous unbroken historical documentary shot" in prompt.lower()
+    assert "trees visibly knocked down by a blast wave" in prompt
+    assert "historical event: the tunguska event" in prompt.lower()
+    assert "1908" in prompt

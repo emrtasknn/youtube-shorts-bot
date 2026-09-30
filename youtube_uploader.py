@@ -38,6 +38,7 @@ def build_shorts_metadata(
         or "Tarihin Bilinmeyen Gizemi"
     ) if topic else "Tarihin Bilinmeyen Gizemi"
     hook_question = topic.get("hook_question", "") if topic else ""
+    media_credits = topic.get("real_media_credits", []) if topic else []
 
     # YouTube max title length is 100 chars
     suffix = " #Shorts"
@@ -63,6 +64,17 @@ def build_shorts_metadata(
         if len(complete_text) > 4800:
             complete_text = complete_text[:4797].rstrip() + "..."
         desc_lines.append(f"{complete_text}\n")
+
+    if media_credits:
+        desc_lines.append("📚 Görsel kaynaklar:")
+        for credit in media_credits[:10]:
+            provider = str(credit.get("provider", "")).capitalize()
+            author = str(credit.get("author", "")).strip()
+            page_url = str(credit.get("page_url", "")).strip()
+            if page_url:
+                label = provider + (f" — {author}" if author else "")
+                desc_lines.append(f"{label}: {page_url}")
+        desc_lines.append("")
 
     desc_lines.extend([
         "🎬 Her gün yeni bir gizemli tarih hikayesi!",

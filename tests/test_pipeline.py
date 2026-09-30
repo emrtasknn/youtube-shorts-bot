@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 # Ensure repo root is on sys.path for pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -183,7 +185,7 @@ class DummyAudio:
 
 
 class DummyVideoClip:
-    def __init__(self, size=(1080, 1920), duration=25.0, audio=DummyAudio()):
+    def __init__(self, size=(1080, 1920), duration=30.0, audio=DummyAudio()):
         self.size = size
         self.duration = duration
         self.audio = audio
@@ -203,7 +205,7 @@ def test_validate_video_quality_valid_clip(monkeypatch, tmp_path):
     qa = pipeline.validate_video_quality(fake_video)
     assert qa["width"] == 1080
     assert qa["height"] == 1920
-    assert qa["duration"] == 25.0
+    assert qa["duration"] == 30.0
     assert qa["has_audio"] is True
 
 
@@ -245,8 +247,8 @@ def test_generate_youtube_title_sanitizes_ai_output(monkeypatch):
         text = '"Bir Adres Londra\'yı Nasıl Kaosa Sürükledi?" #Shorts'
 
     monkeypatch.setattr(
-        pipeline.gemini_config,
-        "call_gemini_with_retry",
+        pipeline.ai_provider,
+        "generate",
         lambda **kwargs: FakeResponse(),
     )
     result = pipeline.generate_youtube_title(
@@ -317,26 +319,18 @@ def test_build_scene_clip_motions(tmp_path):
         assert frame_end.shape == (1920, 1080, 3)
 
 
-def test_topic_history_persistence(tmp_path):
-    history_file = tmp_path / "test_history.json"
-    assert pipeline.load_topic_history(history_file) == []
-
-    pipeline.save_topic_to_history({"title": "Antik Roma Gizemi"}, history_path=history_file)
-    loaded = pipeline.load_topic_history(history_file)
-    assert len(loaded) == 1
-    assert loaded[0]["title"] == "Antik Roma Gizemi"
 
 
 def test_evaluate_script_quality_scoring():
     # 1. High-quality script with hook and loop
     good_scenes = [
-        {"narration": "Bu gizemli olay tarihte nasıl gerçekleşti?", "image_prompt": "prompt 1"},
-        {"narration": "Arkeologlar yıllarca bu sırrı çözmeye çalıştı.", "image_prompt": "prompt 2"},
-        {"narration": "Toprak altından çıkan bulgular herkesi şaşırttı.", "image_prompt": "prompt 3"},
-        {"narration": "Kimse bu kadar büyük bir yapıyı beklemiyordu.", "image_prompt": "prompt 4"},
-        {"narration": "Ancak en karanlık ayrıntı yeni keşfedildi.", "image_prompt": "prompt 5"},
-        {"narration": "O günden sonra bu krallık haritadan silindi.", "image_prompt": "prompt 6"},
-        {"narration": "Ve bu sırrın cevabı aslında;", "image_prompt": "prompt 7"},
+        {"narration": "Bu gizemli olay tarihte nasıl gerçekleşti ve neden yıllarca çözülemedi?", "image_prompt": "prompt 1"},
+        {"narration": "Arkeologlar yıllarca bu sırrı çözmek için bulguları dikkatle inceledi.", "image_prompt": "prompt 2"},
+        {"narration": "Toprak altından çıkan bulgular, beklenenden çok daha büyük bir yapıyı ortaya çıkardı.", "image_prompt": "prompt 3"},
+        {"narration": "Kimse bu kadar büyük bir yapının bu bölgede saklı olduğunu bilmiyordu.", "image_prompt": "prompt 4"},
+        {"narration": "Ancak en karanlık ayrıntı yeni keşfedildi ve bütün hikâyeyi değiştirdi.", "image_prompt": "prompt 5"},
+        {"narration": "O günden sonra bu krallık haritadan silindi, fakat izleri yüzyıllarca kaldı.", "image_prompt": "prompt 6"},
+        {"narration": "Bugün bildiğimiz cevap, ilk bakışta göründüğünden çok daha tuhaf.", "image_prompt": "prompt 7", "ending_strategy": "clean"},
     ]
     qa = pipeline.evaluate_script_quality(good_scenes, topic={"title": "Test"})
     assert qa["passed"] is True
@@ -344,43 +338,19 @@ def test_evaluate_script_quality_scoring():
 
     # 2. Script lacking hook in scene 1 and loop in scene 7
     bad_scenes = [
-        {"narration": "Ali ata baktı ve gitti.", "image_prompt": "prompt 1"},
+        {"narration": "İnsanlar yıllarca bu olay hakkında araştırma yaptı ancak kesin bir açıklama ortaya çıkmadı.", "image_prompt": "prompt 1"},
         {"narration": "Hava bugün oldukça güneşliydi ve güzeldi.", "image_prompt": "prompt 2"},
         {"narration": "Yolda yürürken küçük bir kedi gördüler.", "image_prompt": "prompt 3"},
         {"narration": "Kedi ağacın dalına doğru tırmanmaya başladı.", "image_prompt": "prompt 4"},
         {"narration": "Sonra hep birlikte eve geri döndüler.", "image_prompt": "prompt 5"},
         {"narration": "Akşam yemeğinde lezzetli bir çorba içildi.", "image_prompt": "prompt 6"},
-        {"narration": "Ve böylece güzel bir gün sona erdi.", "image_prompt": "prompt 7"},
+        {"narration": "Ve sonunda cevap aslında;", "image_prompt": "prompt 7"},
     ]
     bad_qa = pipeline.evaluate_script_quality(bad_scenes)
     assert any("hook" in issue.lower() for issue in bad_qa["issues"])
     assert any("loop" in issue.lower() for issue in bad_qa["issues"])
     assert bad_qa["score"] < 80
 
-
-def test_discover_and_score_topics_selection(monkeypatch):
-    class FakeContent:
-        text = json.dumps({
-            "topics": [
-                {"title": "Eski Konu", "hook_question": "Soru 1", "viral_score": 10, "visual_appeal": 10},
-                {"title": "Yeni Harika Konu", "hook_question": "Soru 2", "viral_score": 9, "visual_appeal": 9},
-                {"title": "Düşük Puanlı Konu", "hook_question": "Soru 3", "viral_score": 6, "visual_appeal": 6},
-            ]
-        })
-
-    class FakeModels:
-        def generate_content(self, **kwargs):
-            return FakeContent()
-
-    class FakeClient:
-        models = FakeModels()
-
-    monkeypatch.setattr(pipeline, "client", FakeClient())
-
-    # "Eski Konu" is in history; function must ignore it and pick "Yeni Harika Konu"
-    best = pipeline.discover_and_score_topics(history_titles=["Eski Konu"])
-    assert best["title"] == "Yeni Harika Konu"
-    assert best["viral_score"] == 9
 
 
 # -----------------------------
@@ -419,7 +389,9 @@ def test_approval_state_lifecycle(tmp_path):
     assert "updated_at" in updated
 
 
-def test_build_telegram_markup():
+def test_build_telegram_markup(monkeypatch):
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_NUMBER", raising=False)
     markup = pipeline.build_telegram_markup("run_test_456")
     assert markup is not None
     # 2 rows, 2 buttons each
@@ -645,10 +617,13 @@ def test_handle_callback_action_script(monkeypatch, tmp_path):
 def test_on_status_command(monkeypatch, tmp_path):
     approvals_file = tmp_path / "test_approvals.json"
     monkeypatch.setattr(pipeline, "APPROVALS_FILE", approvals_file)
+    monkeypatch.setattr(pipeline, "TELEGRAM_CHAT_ID", "998877")
 
     replies = []
+    class FakeChat:
+        id = 998877
     class FakeMessage:
-        pass
+        chat = FakeChat()
     msg = FakeMessage()
     monkeypatch.setattr(pipeline.bot, "reply_to", lambda message, text, **kw: replies.append(text))
 
@@ -830,25 +805,93 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline,
         "generate_viral_script",
-        lambda topic=None, content_memory=None: (
-            [{"narration": f"Sahne {i} anlatımı burada yer alıyor.", "image_prompt": f"prompt {i}"} for i in range(7)],
-            {"title": "Test Konu", "hook_question": "Soru?"},
-        ),
+        lambda candidate, research_dossier, content_type="TREND_HISTORY": [
+            {
+                "narration": f"Sahne {i} anlatımı burada yer alıyor.",
+                "image_prompt": f"prompt {i}",
+                "visual_fact": f"Test görsel gerçeği {i}",
+                "visual_role": "reconstruction",
+                "visual_intent": {
+                    "visual_type": [
+                        "reconstruction", "artifact_detail", "historical_environment",
+                        "portrait", "map", "document", "architecture",
+                    ][i],
+                    "primary_subject": [
+                        "ancient figure", "artifact", "historic street",
+                        "historical person", "territory map", "manuscript", "fortress",
+                    ][i],
+                    "visual_action": "test action",
+                    "scene_context": "test context",
+                    "shot_type": [
+                        "wide shot", "close-up", "tracking shot",
+                        "medium shot", "top-down", "over-the-shoulder", "wide shot",
+                    ][i],
+                    "composition": "test composition",
+                    "must_show": ["test object", "test setting"],
+                    "avoid": ["modern object", "generic stock photo"],
+                    "search_queries": ["test historical event"],
+                },
+                "ending_strategy": "clean",
+            }
+            for i in range(7)
+        ],
     )
 
     dummy_audio = tmp_path / "voice.mp3"
     dummy_audio.write_bytes(b"audio")
 
-    async def fake_voice(text, path):
+    async def fake_voice(text, path, *args, **kwargs):
         path.write_bytes(b"voice")
         return [{"word": "Sahne", "start": 0.0, "end": 20.0}]
 
+    monkeypatch.setattr(
+        pipeline.event_memory,
+        "run_discovery_pipeline",
+        lambda: (
+            {
+                "canonical_title": "Test Konu",
+                "title_tr": "Test Konu",
+                "content_type": "TREND_HISTORY",
+                "hook_question": "Soru?",
+                "event_id": "event_test",
+            },
+            {
+                "story_hook": "Soru?",
+                "verified_facts": ["Test gerçeği"],
+                "disputed_claims": [],
+                "possible_myths": [],
+            },
+        ),
+    )
     monkeypatch.setattr(pipeline, "create_voice_with_timestamps", fake_voice)
 
     class FakeAudio:
-        duration = 22.0
+        duration = 30.0
+        nchannels = 2
+        fps = 44100
+
+        def get_frame(self, t):
+            import numpy as np
+            if hasattr(t, "__len__"):
+                return np.zeros((len(t), self.nchannels), dtype=float)
+            return np.zeros((self.nchannels,), dtype=float)
+
+        def subclipped(self, start=0, end=None):
+            if end is not None:
+                self.duration = max(0.0, end - start)
+            return self
+
+        def transform(self, func, keep_duration=True):
+            return self
+
+        def with_effects(self, effects):
+            return self
 
     monkeypatch.setattr(pipeline, "AudioFileClip", lambda p: FakeAudio())
+    # Isolate this pipeline test from MoviePy CompositeAudioClip internals.
+    # The production compositor is exercised by the real runtime; this test only
+    # verifies the auto-publish branch and should not require a full MoviePy graph.
+    monkeypatch.setattr(pipeline, "CompositeAudioClip", lambda layers: FakeAudio())
 
     class FakeVideo:
         def with_duration(self, d):
@@ -861,17 +904,42 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
             Path(path).write_bytes(b"final")
 
     monkeypatch.setattr(pipeline, "CompositeVideoClip", lambda *a, **kw: FakeVideo())
-    monkeypatch.setattr(pipeline, "download_ai_image", lambda prompt, path: Path(path).write_bytes(b"img"))
+
+    def fake_download_ai_image(prompt, path):
+        # Visual QC requires a non-trivial file size; textured noise avoids
+        # JPEG collapsing a uniform fixture below the 50 KB threshold.
+        Image.effect_noise((1080, 1920), 128).convert("RGB").save(
+            path, format="JPEG", quality=90
+        )
+        return Path(path)
+
+    monkeypatch.setattr(pipeline, "download_ai_image", fake_download_ai_image)
     monkeypatch.setattr(pipeline, "build_scene_clip", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "generate_subtitle_clips", lambda *a: [])
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
-    monkeypatch.setattr(pipeline, "get_ambient_music", lambda p, content_analysis=None, memory=None: None)
-    monkeypatch.setattr(pipeline, "validate_video_quality", lambda p: {"passed": True})
-    monkeypatch.setattr(pipeline, "save_topic_to_history", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        pipeline,
+        "get_ambient_music",
+        lambda p, content_analysis=None, memory=None: dummy_audio,
+    )
+    monkeypatch.setattr(pipeline, "validate_visual_storyboard", lambda scenes: {"scene_count": len(scenes)})
+    monkeypatch.setattr(
+        pipeline,
+        "validate_visual_sources",
+        lambda sources, scenes, min_relevance=0.65: {
+            "decision": "PASS",
+            "real_visuals": 0,
+            "ai_reconstructions": len(scenes),
+            "factual_scene_quality_score": 1.0,
+            "warnings": [],
+            "results": [],
+        },
+    )
+    monkeypatch.setattr(pipeline, "validate_video_quality", lambda p, **kwargs: {"passed": True})
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
 
     # Mock the content_memory module functions used by run()
-    cm = pipeline.content_memory_module
+    cm = pipeline.content_memory
     monkeypatch.setattr(cm, "load_content_memory", lambda *a, **kw: [])
     monkeypatch.setattr(cm, "analyze_script_content", lambda *a, **kw: {
         "topic": "Test", "angle": "test angle", "summary": "s",
@@ -950,12 +1018,12 @@ def test_render_subtitle_image_long_text_scaling():
 
 def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
     fake_video = tmp_path / "low_bitrate.mp4"
-    # 55KB file for 25s duration gives only ~17 kbps
+    # 55KB file for 30s duration gives only ~15 kbps
     fake_video.write_bytes(b"\x00" * 55_000)
 
     class DummyClip:
         size = (1080, 1920)
-        duration = 25.0
+        duration = 30.0
         audio = True
 
         def __enter__(self):
@@ -974,46 +1042,7 @@ def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
         raise AssertionError("Expected ValueError for low bitrate")
 
 
-def test_fallback_stories_structure_and_duration_bounds():
-    assert len(pipeline.FALLBACK_STORIES) >= 3
-    for story in pipeline.FALLBACK_STORIES:
-        assert "title" in story
-        assert "hook_question" in story
-        assert len(story["scenes"]) == pipeline.SCENE_COUNT
-        total_words = sum(len(s["narration"].split()) for s in story["scenes"])
-        assert pipeline.MIN_TOTAL_WORDS <= total_words <= pipeline.MAX_TOTAL_WORDS
 
 
-def test_discover_topics_fallback_when_api_fails(monkeypatch):
-    class FailingModels:
-        def generate_content(self, *a, **kw):
-            raise RuntimeError("API quota exhausted 429")
 
-    class FailingClient:
-        models = FailingModels()
-
-    monkeypatch.setattr(pipeline, "client", FailingClient())
-    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
-    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
-    topic = pipeline.discover_and_score_topics(history_titles=["Kayıp Koloni Roanoke Gizemi"])
-    assert topic is not None
-    assert "title" in topic
-    assert "scenes" in topic
-    assert len(topic["scenes"]) == pipeline.SCENE_COUNT
-
-
-def test_generate_viral_script_fallback_when_api_fails(monkeypatch):
-    class FailingModels:
-        def generate_content(self, *a, **kw):
-            raise RuntimeError("API quota exhausted 429")
-
-    class FailingClient:
-        models = FailingModels()
-
-    monkeypatch.setattr(pipeline, "client", FailingClient())
-    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
-    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
-    scenes, topic = pipeline.generate_viral_script()
-    assert len(scenes) == pipeline.SCENE_COUNT
-    assert topic is not None
 

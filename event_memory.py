@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from google import genai
-import gemini_config
+import ai_provider
 
 log = logging.getLogger("shorts-bot")
 
@@ -47,7 +47,7 @@ UNCERTAIN = "UNCERTAIN"
 
 def _call_gemini_json(prompt: str, label: str = "gemini call") -> Optional[dict | list]:
     """Call Gemini with JSON output mode using centralized retry logic."""
-    res = gemini_config.call_gemini_with_retry(
+    res = ai_provider.generate(
         prompt=prompt,
         label=label,
         response_mime_type="application/json"
@@ -1401,6 +1401,32 @@ def resolve_visual_source(
                 result.get("event_specificity", 0),
             )
             return result
+
+    # Real-media fallback layer
+    try:
+        import media_provider
+        media_result = media_provider.search(
+            queries,
+            excluded_urls=list(excluded),
+            visual_intent=intent,
+        )
+        media_min_relevance = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
+        if media_result and float(media_result.get("relevance_score", 0)) >= media_min_relevance:
+            log.info(
+                "VISUAL: %s -> %s relevance=%.2f",
+                scene_description[:40],
+                media_result.get("source_type", "real media"),
+                media_result.get("relevance_score", 0),
+            )
+            return media_result
+        if media_result:
+            log.info(
+                "VISUAL: real-media result below QA threshold (%.2f < %.2f); continuing fallback",
+                float(media_result.get("relevance_score", 0)),
+                media_min_relevance,
+            )
+    except Exception as exc:
+        log.warning("VISUAL: real-media router failed: %s", exc)
 
     result = search_openverse_image(
         queries,
