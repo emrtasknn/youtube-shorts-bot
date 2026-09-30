@@ -2569,7 +2569,6 @@ def run(
                 scene_clips.append(
                     build_generated_video_clip(video_path, start, end)
                 )
-                scene["resolved_visual"]["media_mode"] = "video"
                 log.info(
                     "Scene %d video generation passed via %s/%s",
                     i,
