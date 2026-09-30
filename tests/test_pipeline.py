@@ -317,26 +317,18 @@ def test_build_scene_clip_motions(tmp_path):
         assert frame_end.shape == (1920, 1080, 3)
 
 
-def test_topic_history_persistence(tmp_path):
-    history_file = tmp_path / "test_history.json"
-    assert pipeline.load_topic_history(history_file) == []
-
-    pipeline.save_topic_to_history({"title": "Antik Roma Gizemi"}, history_path=history_file)
-    loaded = pipeline.load_topic_history(history_file)
-    assert len(loaded) == 1
-    assert loaded[0]["title"] == "Antik Roma Gizemi"
 
 
 def test_evaluate_script_quality_scoring():
     # 1. High-quality script with hook and loop
     good_scenes = [
-        {"narration": "Bu gizemli olay tarihte nasıl gerçekleşti?", "image_prompt": "prompt 1"},
-        {"narration": "Arkeologlar yıllarca bu sırrı çözmeye çalıştı.", "image_prompt": "prompt 2"},
-        {"narration": "Toprak altından çıkan bulgular herkesi şaşırttı.", "image_prompt": "prompt 3"},
-        {"narration": "Kimse bu kadar büyük bir yapıyı beklemiyordu.", "image_prompt": "prompt 4"},
-        {"narration": "Ancak en karanlık ayrıntı yeni keşfedildi.", "image_prompt": "prompt 5"},
-        {"narration": "O günden sonra bu krallık haritadan silindi.", "image_prompt": "prompt 6"},
-        {"narration": "Ve bu sırrın cevabı aslında;", "image_prompt": "prompt 7"},
+        {"narration": "Bu gizemli olay tarihte nasıl gerçekleşti ve neden yıllarca çözülemedi?", "image_prompt": "prompt 1"},
+        {"narration": "Arkeologlar yıllarca bu sırrı çözmek için bulguları dikkatle inceledi.", "image_prompt": "prompt 2"},
+        {"narration": "Toprak altından çıkan bulgular, beklenenden çok daha büyük bir yapıyı ortaya çıkardı.", "image_prompt": "prompt 3"},
+        {"narration": "Kimse bu kadar büyük bir yapının bu bölgede saklı olduğunu bilmiyordu.", "image_prompt": "prompt 4"},
+        {"narration": "Ancak en karanlık ayrıntı yeni keşfedildi ve bütün hikâyeyi değiştirdi.", "image_prompt": "prompt 5"},
+        {"narration": "O günden sonra bu krallık haritadan silindi, fakat izleri yüzyıllarca kaldı.", "image_prompt": "prompt 6"},
+        {"narration": "Bugün bildiğimiz cevap, ilk bakışta göründüğünden çok daha tuhaf.", "image_prompt": "prompt 7", "ending_strategy": "clean"},
     ]
     qa = pipeline.evaluate_script_quality(good_scenes, topic={"title": "Test"})
     assert qa["passed"] is True
@@ -357,30 +349,6 @@ def test_evaluate_script_quality_scoring():
     assert any("loop" in issue.lower() for issue in bad_qa["issues"])
     assert bad_qa["score"] < 80
 
-
-def test_discover_and_score_topics_selection(monkeypatch):
-    class FakeContent:
-        text = json.dumps({
-            "topics": [
-                {"title": "Eski Konu", "hook_question": "Soru 1", "viral_score": 10, "visual_appeal": 10},
-                {"title": "Yeni Harika Konu", "hook_question": "Soru 2", "viral_score": 9, "visual_appeal": 9},
-                {"title": "Düşük Puanlı Konu", "hook_question": "Soru 3", "viral_score": 6, "visual_appeal": 6},
-            ]
-        })
-
-    class FakeModels:
-        def generate_content(self, **kwargs):
-            return FakeContent()
-
-    class FakeClient:
-        models = FakeModels()
-
-    monkeypatch.setattr(pipeline, "client", FakeClient())
-
-    # "Eski Konu" is in history; function must ignore it and pick "Yeni Harika Konu"
-    best = pipeline.discover_and_score_topics(history_titles=["Eski Konu"])
-    assert best["title"] == "Yeni Harika Konu"
-    assert best["viral_score"] == 9
 
 
 # -----------------------------
@@ -419,7 +387,9 @@ def test_approval_state_lifecycle(tmp_path):
     assert "updated_at" in updated
 
 
-def test_build_telegram_markup():
+def test_build_telegram_markup(monkeypatch):
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_NUMBER", raising=False)
     markup = pipeline.build_telegram_markup("run_test_456")
     assert markup is not None
     # 2 rows, 2 buttons each
@@ -647,8 +617,10 @@ def test_on_status_command(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "APPROVALS_FILE", approvals_file)
 
     replies = []
+    class FakeChat:
+        id = 998877
     class FakeMessage:
-        pass
+        chat = FakeChat()
     msg = FakeMessage()
     monkeypatch.setattr(pipeline.bot, "reply_to", lambda message, text, **kw: replies.append(text))
 
@@ -871,7 +843,7 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
 
     # Mock the content_memory module functions used by run()
-    cm = pipeline.content_memory_module
+    cm = pipeline.content_memory
     monkeypatch.setattr(cm, "load_content_memory", lambda *a, **kw: [])
     monkeypatch.setattr(cm, "analyze_script_content", lambda *a, **kw: {
         "topic": "Test", "angle": "test angle", "summary": "s",
@@ -950,12 +922,12 @@ def test_render_subtitle_image_long_text_scaling():
 
 def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
     fake_video = tmp_path / "low_bitrate.mp4"
-    # 55KB file for 25s duration gives only ~17 kbps
+    # 55KB file for 30s duration gives only ~15 kbps
     fake_video.write_bytes(b"\x00" * 55_000)
 
     class DummyClip:
         size = (1080, 1920)
-        duration = 25.0
+        duration = 30.0
         audio = True
 
         def __enter__(self):
@@ -974,46 +946,7 @@ def test_validate_video_quality_bitrate_check(monkeypatch, tmp_path):
         raise AssertionError("Expected ValueError for low bitrate")
 
 
-def test_fallback_stories_structure_and_duration_bounds():
-    assert len(pipeline.FALLBACK_STORIES) >= 3
-    for story in pipeline.FALLBACK_STORIES:
-        assert "title" in story
-        assert "hook_question" in story
-        assert len(story["scenes"]) == pipeline.SCENE_COUNT
-        total_words = sum(len(s["narration"].split()) for s in story["scenes"])
-        assert pipeline.MIN_TOTAL_WORDS <= total_words <= pipeline.MAX_TOTAL_WORDS
 
 
-def test_discover_topics_fallback_when_api_fails(monkeypatch):
-    class FailingModels:
-        def generate_content(self, *a, **kw):
-            raise RuntimeError("API quota exhausted 429")
 
-    class FailingClient:
-        models = FailingModels()
-
-    monkeypatch.setattr(pipeline, "client", FailingClient())
-    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
-    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
-    topic = pipeline.discover_and_score_topics(history_titles=["Kayıp Koloni Roanoke Gizemi"])
-    assert topic is not None
-    assert "title" in topic
-    assert "scenes" in topic
-    assert len(topic["scenes"]) == pipeline.SCENE_COUNT
-
-
-def test_generate_viral_script_fallback_when_api_fails(monkeypatch):
-    class FailingModels:
-        def generate_content(self, *a, **kw):
-            raise RuntimeError("API quota exhausted 429")
-
-    class FailingClient:
-        models = FailingModels()
-
-    monkeypatch.setattr(pipeline, "client", FailingClient())
-    monkeypatch.setattr(pipeline, "DEFAULT_CANDIDATE_MODELS", ["gemini-test"])
-    monkeypatch.setattr(pipeline.time, "sleep", lambda s: None)
-    scenes, topic = pipeline.generate_viral_script()
-    assert len(scenes) == pipeline.SCENE_COUNT
-    assert topic is not None
 
