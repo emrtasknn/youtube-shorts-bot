@@ -231,7 +231,12 @@ def _veo(prompt: str, filename: Path, *, model: str, image_path: Path | None = N
     else:
         client.files.download(file=video, destination=str(filename))
 
-    provider_name = "veo31"\n    if "fast" in model:\n        provider_name = "veo31_fast"\n    elif "lite" in model:\n        provider_name = "veo31_lite"\n    return VideoResponse(provider_name, model, filename)
+    provider_name = "veo31"
+    if "fast" in model:
+        provider_name = "veo31_fast"
+    elif "lite" in model:
+        provider_name = "veo31_lite"
+    return VideoResponse(provider_name, model, filename)
 
 
 _HANDLERS = {
