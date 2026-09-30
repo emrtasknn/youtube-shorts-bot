@@ -810,10 +810,20 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
                 "visual_fact": f"Test görsel gerçeği {i}",
                 "visual_role": "reconstruction",
                 "visual_intent": {
-                    "primary_subject": "test subject",
+                    "visual_type": [
+                        "reconstruction", "artifact_detail", "historical_environment",
+                        "portrait", "map", "document", "architecture",
+                    ][i],
+                    "primary_subject": [
+                        "ancient figure", "artifact", "historic street",
+                        "historical person", "territory map", "manuscript", "fortress",
+                    ][i],
                     "visual_action": "test action",
                     "scene_context": "test context",
-                    "shot_type": "medium shot",
+                    "shot_type": [
+                        "wide shot", "close-up", "tracking shot",
+                        "medium shot", "top-down", "over-the-shoulder", "wide shot",
+                    ][i],
                     "composition": "test composition",
                     "must_show": ["test object", "test setting"],
                     "avoid": ["modern object", "generic stock photo"],
