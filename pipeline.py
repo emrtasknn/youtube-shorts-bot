@@ -885,10 +885,6 @@ Kurallar:
     raise RuntimeError("Script generation failed after all attempts. Pipeline aborting safely.")
 
 
-# Alias for the content_memory module to avoid name collision with local variables
-content_memory_module = content_memory
-
-
 
 # -----------------------------
 # Voice + word timing
@@ -1570,8 +1566,8 @@ def get_ambient_music(music_path: Path, content_analysis: dict | None = None, me
 
     # 1. Content-aware selection from local tracks (Phase 4)
     if content_analysis and AUDIO_ASSETS_DIR.exists():
-        recently_used = content_memory_module.get_recently_used_audio(memory or [])
-        selected = content_memory_module.select_audio_for_content(
+        recently_used = content_memory.get_recently_used_audio(memory or [])
+        selected = content_memory.select_audio_for_content(
             analysis=content_analysis,
             audio_dir=AUDIO_ASSETS_DIR,
             recently_used=recently_used,
@@ -2445,12 +2441,12 @@ def run(
     log.info("Generated YouTube title: %s", youtube_title)
 
     log.info("4/8 Analyzing script content for metadata")
-    candidate_analysis = content_memory_module.analyze_script_content(
+    candidate_analysis = content_memory.analyze_script_content(
         scenes=scenes,
         topic_title=topic_compat["title"],
     )
 
-    diversity_report = content_memory_module.evaluate_visual_diversity(scenes)
+    diversity_report = content_memory.evaluate_visual_diversity(scenes)
     visual_warnings = diversity_report.get("warnings", [])
     log.info(
         "Visual diversity evaluated — score: %.2f (acceptable=%s, types=%d, shots=%d, warnings=%d)",
@@ -2461,7 +2457,7 @@ def run(
         len(visual_warnings),
     )
     if visual_warnings:
-        scenes = content_memory_module.diversify_image_prompts(scenes)
+        scenes = content_memory.diversify_image_prompts(scenes)
 
     log.info("5/8 Generating voice and word timestamps")
     voice_path = run_dir / "voice.mp3"
@@ -2748,7 +2744,7 @@ def run(
     ).with_duration(total_duration)
 
     log.info("8/8 Mixing audio (content-aware selection + real ducking)")
-    memory = content_memory_module.load_content_memory()
+    memory = content_memory.load_content_memory()
     music_path = get_ambient_music(
         run_dir / "bg_music.mp3",
         content_analysis=candidate_analysis,
@@ -2774,7 +2770,7 @@ def run(
             fade_out_len = min(1.5, total_duration / 4)
 
             # Use moviepy's make_frame to apply true ducking function
-            ducking_fn = content_memory_module.compute_ducking_volume(
+            ducking_fn = content_memory.compute_ducking_volume(
                 narration_words=words_data,
                 total_duration=total_duration,
                 base_volume=0.18,
@@ -2858,7 +2854,7 @@ def run(
     topic_compat["event_id"] = event_record.get("event_id", "")
 
     # ── Legacy Content Memory ──
-    content_entry = content_memory_module.build_content_entry(
+    content_entry = content_memory.build_content_entry(
         topic=topic_compat,
         scenes=scenes,
         analysis=candidate_analysis,
@@ -2868,7 +2864,7 @@ def run(
     content_entry["voice_profile"] = voice_profile_name
     content_entry["ending_strategy"] = scenes[-1].get("ending_strategy", "")
     content_entry["event_id"] = event_record["event_id"]
-    content_memory_module.save_content_entry(content_entry)
+    content_memory.save_content_entry(content_entry)
 
     # Build reusable attribution records for real-media sources.
     media_credits = []
