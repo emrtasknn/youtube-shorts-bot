@@ -13,8 +13,6 @@ import edge_tts
 import numpy as np
 import requests
 import telebot
-from huggingface_hub import InferenceClient
-from google import genai
 from moviepy import (
     AudioFileClip,
     CompositeAudioClip,
@@ -38,6 +36,7 @@ import prompt_engine
 import visual_qc
 import visual_telemetry
 import scene_transitions
+import image_provider
 
 
 # -----------------------------
@@ -172,7 +171,6 @@ if not TELEGRAM_BOT_TOKEN:
 if not TELEGRAM_CHAT_ID:
     raise RuntimeError("TELEGRAM_CHAT_ID is missing")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 logging.basicConfig(
@@ -1043,123 +1041,25 @@ def crop_watermark_zone(filename: Path):
         final_img.save(filename, quality=95)
 
 
-def try_imagen3_generation(prompt_text: str, filename: Path) -> bool:
-    """Attempt high-resolution native 9:16 image generation via Google GenAI Imagen 3."""
-    try:
-        if not hasattr(client, "models") or not hasattr(client.models, "generate_images"):
-            return False
-        result = client.models.generate_images(
-            model="imagen-3.0-generate-002",
-            prompt=prompt_text,
-            config=dict(
-                number_of_images=1,
-                output_mime_type="image/jpeg",
-                aspect_ratio="9:16",
-            ),
-        )
-        if result and getattr(result, "generated_images", None):
-            image_bytes = result.generated_images[0].image.image_bytes
-            filename.write_bytes(image_bytes)
-            with Image.open(filename) as img:
-                img = img.convert("RGB").resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
-                img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=110, threshold=3))
-                img.save(filename, quality=95)
-            log.info("Successfully generated native 9:16 image with Imagen 3: %s", filename.name)
-            return True
-    except Exception as exc:
-        log.debug("Imagen 3 generation skipped/failed: %s", exc)
-    return False
-
-
-def _save_generated_image_bytes(image_bytes: bytes, filename: Path, crop_watermark: bool = False):
-    if not image_bytes or len(image_bytes) <= 5000:
-        raise RuntimeError("Generated image response is unexpectedly small")
-    filename.write_bytes(image_bytes)
-    if crop_watermark:
-        crop_watermark_zone(filename)
-    return filename
-
-
-def try_pollinations_generation(prompt_text: str, filename: Path, model: str) -> Path:
-    cleaned = urllib.parse.quote(prompt_text)
-    url = (
-        f"https://image.pollinations.ai/prompt/{cleaned}"
-        f"?width=1024&height=1024&model={urllib.parse.quote(model)}&nologo=true"
-    )
-
-    def request_image():
-        response = requests.get(url, timeout=75)
-        response.raise_for_status()
-        return _save_generated_image_bytes(response.content, filename, crop_watermark=True)
-
-    return retry_call(
-        request_image,
-        attempts=2,
-        base_delay=4,
-        label=f"Pollinations {model} image generation",
-    )
-
-
-def try_huggingface_generation(prompt_text: str, filename: Path) -> Path | None:
-    """Last-resort cloud image provider using the user's Hugging Face free credits."""
-    if not HF_TOKEN:
-        log.info("Hugging Face image fallback skipped: HF_TOKEN is not configured")
-        return None
-
-    def request_image():
-        client = InferenceClient(
-            api_key=HF_TOKEN,
-            provider="auto",
-        )
-        image = client.text_to_image(
-            prompt_text,
-            model=HF_IMAGE_MODEL,
-            width=1024,
-            height=1024,
-        )
-        if image is None:
-            raise RuntimeError("Hugging Face returned no image")
-        image.save(filename, format="PNG")
-        return filename
-
-    try:
-        return retry_call(
-            request_image,
-            attempts=2,
-            base_delay=5,
-            label=f"Hugging Face {HF_IMAGE_MODEL} image generation",
-        )
-    except Exception as exc:
-        log.warning("Hugging Face image fallback failed: %s", exc)
-        return None
-
-
 def download_ai_image(prompt_text: str, filename: Path):
-    # Provider chain:
-    # 1) Google Imagen 3 (already available through the existing Gemini setup)
-    # 2) Pollinations turbo
-    # 3) Pollinations flux
-    # 4) Hugging Face Inference Providers (only when HF_TOKEN exists)
-    if try_imagen3_generation(prompt_text, filename):
-        return filename
+    """Generate one image through the centralized provider router.
 
-    for model in ("turbo", "flux"):
-        try:
-            result = try_pollinations_generation(prompt_text, filename, model)
-            log.info("AI IMAGE PROVIDER: Pollinations/%s", model)
-            return result
-        except Exception as exc:
-            log.warning("Pollinations/%s unavailable: %s", model, exc)
-
-    hf_result = try_huggingface_generation(prompt_text, filename)
-    if hf_result:
-        log.info("AI IMAGE PROVIDER: Hugging Face/%s", HF_IMAGE_MODEL)
-        return hf_result
-
-    raise RuntimeError(
-        "All AI image providers failed: Imagen 3, Pollinations turbo, "
-        "Pollinations flux, and Hugging Face"
+    Provider credentials and order are controlled by IMAGE_PROVIDER_ORDER.
+    The router guarantees that this function returns only after a valid image
+    has been written; otherwise it raises a controlled error.
+    """
+    result = image_provider.generate(
+        prompt_text,
+        filename,
+        label=f"AI image generation {filename.name}",
     )
+    log.info(
+        "AI IMAGE PROVIDER: %s/%s -> %s",
+        result.provider,
+        result.model,
+        result.path.name,
+    )
+    return result.path
 
 
 # -----------------------------
