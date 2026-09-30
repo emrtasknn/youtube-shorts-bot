@@ -1402,7 +1402,7 @@ def resolve_visual_source(
             )
             return result
 
-    result = search_openverse_image(
+    # New real-media fallback layer: Pexels → Pixabay → Unsplash.\n    # Keep Wikimedia/Openverse first because they are often stronger for historical evidence.\n    try:\n        import media_provider\n        media_result = media_provider.search(\n            queries,\n            excluded_urls=list(excluded),\n            visual_intent=intent,\n        )\n        if media_result:\n            log.info(\n                "VISUAL: %s → %s %s relevance=%.2f",\n                scene_description[:40],\n                media_result.get("source_type", "real media"),\n                media_result.get("title", ""),\n                media_result.get("relevance_score", 0),\n            )\n            return media_result\n    except Exception as exc:\n        log.warning("VISUAL: real-media router failed: %s", exc)\n\n    result = search_openverse_image(
         queries,
         list(excluded),
         min_relevance=0.65,
