@@ -21,6 +21,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     concatenate_audioclips,
+    concatenate_videoclips,
 )
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
@@ -37,6 +38,7 @@ import visual_qc
 import visual_telemetry
 import scene_transitions
 import image_provider
+import video_provider
 
 
 # -----------------------------
@@ -72,6 +74,8 @@ WATERMARK_CROP_PX = int(os.getenv("WATERMARK_CROP_PX", "75"))
 ZOOM_AMOUNT = float(os.getenv("ZOOM_AMOUNT", "0.07"))
 IMAGE_ENHANCEMENT_ENABLED = os.getenv("IMAGE_ENHANCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
 REAL_VISUAL_MIN_RELEVANCE = float(os.getenv("REAL_VISUAL_MIN_RELEVANCE", "0.65"))
+MEDIA_MODE_DEFAULT = os.getenv("MEDIA_MODE", "image").strip().lower()
+ALLOWED_MEDIA_MODES = {"image", "video"}
 # Atmosphere shots are useful as transitions, but should never replace the
 # factual core of a short. Two or three are reviewable warnings; four or more
 # indicate that the storyboard is no longer carrying enough event detail.
@@ -1065,6 +1069,43 @@ def download_ai_image(prompt_text: str, filename: Path):
 # -----------------------------
 # Video composition
 # -----------------------------
+
+def build_generated_video_clip(video_path: Path, start_time: float, end_time: float):
+    """Load a generated scene video, normalize to 1080x1920 and fit its scene duration."""
+    duration = max(end_time - start_time, 0.2)
+    clip = VideoFileClip(str(video_path)).without_audio()
+
+    if clip.size != (VIDEO_WIDTH, VIDEO_HEIGHT):
+        clip = clip.resized((VIDEO_WIDTH, VIDEO_HEIGHT))
+
+    if clip.duration < duration - 0.05:
+        repeats = max(1, int(np.ceil(duration / max(clip.duration, 0.1))))
+        clip = concatenate_videoclips([clip] * repeats, method="compose")
+
+    clip = clip.subclipped(0, min(duration, clip.duration)).with_start(start_time)
+    return clip
+
+
+def generate_ai_video(scene: dict, topic_title: str, event_context: dict, filename: Path):
+    """Generate one event-specific scene clip through the Google video router."""
+    prompt = prompt_engine.build_ai_video_prompt(
+        scene=scene,
+        topic_title=topic_title,
+        event_context=event_context,
+    )
+    result = video_provider.generate(
+        prompt,
+        filename,
+        label=f"AI video generation {filename.name}",
+    )
+    scene["video_generation"] = {
+        "provider": result.provider,
+        "model": result.model,
+        "path": str(result.path),
+    }
+    return result.path
+
+
 MOTION_TYPES = ["zoom_in", "pan_left_right", "zoom_out", "pan_right_left"]
 
 
@@ -1745,7 +1786,7 @@ def send_to_telegram(
         f"🔥 *{topic_title}*\n\n"
         f"{hook_line}"
         f"⏱ Süre: {total_duration:.1f}s | {SCENE_COUNT} Sahne\n"
-        "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+        ("🎬 AI Video + Kelime Vurgulu Altyazı + Ambiyans\n\n" if os.getenv("MEDIA_MODE", "image").lower() == "video" else "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n")
         f"{full_text[:280]}..."
     )
 
@@ -2334,12 +2375,22 @@ Do not invent facts.
 # -----------------------------
 # Main pipeline
 # -----------------------------
-def run(auto_publish: bool | None = None, run_id: str | None = None, content_type: str = "TREND_HISTORY", custom_prompt: str = "", exclude_titles: list[str] | None = None):
+def run(
+    auto_publish: bool | None = None,
+    run_id: str | None = None,
+    content_type: str = "TREND_HISTORY",
+    custom_prompt: str = "",
+    exclude_titles: list[str] | None = None,
+    media_mode: str | None = None,
+):
     run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}"
     run_dir = OUTPUT_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     visual_warnings: list = []
+    media_mode = (media_mode or os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT)).strip().lower()
+    if media_mode not in ALLOWED_MEDIA_MODES:
+        raise ValueError(f"Unsupported MEDIA_MODE={media_mode!r}; use image or video")
     # Run migration if needed
     if not event_memory.EVENT_MEMORY_FILE.exists():
         log.info("First run with V2 engine. Attempting migration...")
@@ -2454,7 +2505,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     storyboard_qa = validate_visual_storyboard(scenes)
     log.info("Visual storyboard QA (final scenes): %s", storyboard_qa)
 
-    log.info("6/8 Resolving visual sources and generating images")
+    log.info("6/8 Resolving visuals and generating %s scenes", media_mode)
     scene_clips = []
 
     # V2: construct event_context once here (values are constant across scenes).
@@ -2502,6 +2553,41 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
 
     for i, (scene, (start, end), v_source) in enumerate(zip(scenes, scene_timings, visual_sources), 1):
         image_path = run_dir / f"scene_{i:02d}.jpg"
+
+        # Video mode is the primary generative-media path. If Google video
+        # generation is unavailable or blocked for a scene, fall back to the
+        # existing image compositor for that scene only.
+        if media_mode == "video":
+            video_path = run_dir / f"scene_{i:02d}.mp4"
+            try:
+                generate_ai_video(
+                    scene=scene,
+                    topic_title=topic_compat["title"],
+                    event_context=event_context,
+                    filename=video_path,
+                )
+                scene_clips.append(
+                    build_generated_video_clip(video_path, start, end)
+                )
+                scene["resolved_visual"]["media_mode"] = "video"
+                log.info(
+                    "Scene %d video generation passed via %s/%s",
+                    i,
+                    scene.get("video_generation", {}).get("provider", ""),
+                    scene.get("video_generation", {}).get("model", ""),
+                )
+                continue
+            except Exception as exc:
+                scene["video_generation"] = {
+                    "status": "failed",
+                    "error": str(exc),
+                    "fallback": "image",
+                }
+                log.warning(
+                    "Scene %d video generation failed; falling back to image mode: %s",
+                    i,
+                    exc,
+                )
 
         # V1.4 visual loop: natural narration, but return to the opening visual.
         image_downloaded = False
@@ -2818,6 +2904,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
         "qa": video_qa,
         "content_analysis": candidate_analysis,
         "audio_track": selected_audio_track,
+        "media_mode": media_mode,
         "audio_mix_mode": audio_mix_mode,
         "sfx": sfx_records,
         "sfx_config": {
@@ -2832,6 +2919,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             "pitch": voice_profile["pitch"],
         },
         "visual_sources": visual_sources,
+        "media_mode": media_mode,
         "real_media_credits": media_credits,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_storyboard_qa": storyboard_qa,
@@ -2884,7 +2972,11 @@ if __name__ == "__main__":
         requested_type = os.getenv("CONTENT_TYPE", "TREND_HISTORY").strip().upper()
         custom_prompt = os.getenv("CUSTOM_PROMPT", "").strip()
         if batch_count == 1:
-            run(content_type=requested_type, custom_prompt=custom_prompt)
+            run(
+                content_type=requested_type,
+                custom_prompt=custom_prompt,
+                media_mode=os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT),
+            )
         else:
             batch_stamp = time.strftime("%Y%m%d_%H%M%S")
             plan = content_engine.daily_plan()[:batch_count]
@@ -2901,6 +2993,7 @@ if __name__ == "__main__":
                         content_type=content_type,
                         custom_prompt=custom_prompt if content_type == "CUSTOM" else "",
                         exclude_titles=produced_titles,
+                        media_mode=os.getenv("MEDIA_MODE", MEDIA_MODE_DEFAULT),
                     )
                     successful += 1
                 except Exception:
