@@ -5,6 +5,7 @@ Pillow
 pyTelegramBotAPI
 requests
 google-genai
+fal-client
 pytest
 google-api-python-client
 google-auth-oauthlib
