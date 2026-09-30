@@ -935,7 +935,7 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
             "results": [],
         },
     )
-    monkeypatch.setattr(pipeline, "validate_video_quality", lambda p: {"passed": True})
+    monkeypatch.setattr(pipeline, "validate_video_quality", lambda p, **kwargs: {"passed": True})
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
 
     # Mock the content_memory module functions used by run()
