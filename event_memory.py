@@ -1421,6 +1421,7 @@ def resolve_visual_source(
     except Exception as exc:
         log.warning("VISUAL: real-media router failed: %s", exc)
 
+    result = search_openverse_image(
         queries,
         list(excluded),
         min_relevance=0.65,
