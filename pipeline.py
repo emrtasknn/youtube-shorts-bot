@@ -1777,12 +1777,17 @@ def send_to_telegram(
     hook_line = f"❓ _{hook_question}_\n\n" if hook_question else ""
     type_line = f"{content_label}\n" if content_label else ""
 
+    media_line = (
+        "🎬 AI Video + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+        if os.getenv("MEDIA_MODE", "image").lower() == "video"
+        else "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n"
+    )
     caption = (
         f"{type_line}"
         f"🔥 *{topic_title}*\n\n"
         f"{hook_line}"
         f"⏱ Süre: {total_duration:.1f}s | {SCENE_COUNT} Sahne\n"
-        ("🎬 AI Video + Kelime Vurgulu Altyazı + Ambiyans\n\n" if os.getenv("MEDIA_MODE", "image").lower() == "video" else "🎬 AI Görsel + Kelime Vurgulu Altyazı + Ambiyans\n\n")
+        f"{media_line}"
         f"{full_text[:280]}..."
     )
 
