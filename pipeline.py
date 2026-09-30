@@ -406,7 +406,10 @@ def evaluate_script_quality(scenes: list[dict], topic: dict | None = None) -> di
     hook_indicators = ["?", "nasıl", "neden", "kim", "nerede", "hiç", "inanılmaz", "gizem", "şok", "esrarengiz", "fakat"]
     passive_date_openers = ("1814 yılında", "1872 yılında", "191", "18", "17")
     has_hook_signal = any(ind in s1.lower() for ind in hook_indicators)
-    if (not has_hook_signal and s1.lower().startswith(passive_date_openers)) or len(s1.split()) > 14:
+    if not has_hook_signal:
+        score -= 20
+        issues.append("Scene 1 hook is missing; prefer an immediate surprise, scale, consequence, or question")
+    elif s1.lower().startswith(passive_date_openers) or len(s1.split()) > 14:
         score -= 20
         issues.append("Scene 1 hook is too passive/date-led or too long; prefer immediate surprise, scale, or question")
 
