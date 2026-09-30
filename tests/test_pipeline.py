@@ -867,6 +867,14 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
 
     class FakeAudio:
         duration = 30.0
+        nchannels = 2
+        fps = 44100
+
+        def get_frame(self, t):
+            import numpy as np
+            if hasattr(t, "__len__"):
+                return np.zeros((len(t), self.nchannels), dtype=float)
+            return np.zeros((self.nchannels,), dtype=float)
 
         def subclipped(self, start=0, end=None):
             if end is not None:
