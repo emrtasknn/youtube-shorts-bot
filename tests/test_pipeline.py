@@ -854,7 +854,7 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "create_voice_with_timestamps", fake_voice)
 
     class FakeAudio:
-        duration = 22.0
+        duration = 30.0
 
     monkeypatch.setattr(pipeline, "AudioFileClip", lambda p: FakeAudio())
 
