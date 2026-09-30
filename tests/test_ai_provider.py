@@ -69,3 +69,7 @@ def test_no_provider_has_clear_configuration_error(monkeypatch):
         assert "No AI provider is configured" in str(exc)
     else:
         raise AssertionError("Expected a configuration error")
+
+def test_blank_model_env_uses_provider_default(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "")
+    assert ai_provider._model_for("gemini") == "gemini-3.1-flash-lite"
