@@ -894,7 +894,11 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "build_scene_clip", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "generate_subtitle_clips", lambda *a: [])
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
-    monkeypatch.setattr(pipeline, "get_ambient_music", lambda p, content_analysis=None, memory=None: None)
+    monkeypatch.setattr(
+        pipeline,
+        "get_ambient_music",
+        lambda p, content_analysis=None, memory=None: dummy_audio,
+    )
     monkeypatch.setattr(pipeline, "validate_visual_storyboard", lambda scenes: {"scene_count": len(scenes)})
     monkeypatch.setattr(
         pipeline,
