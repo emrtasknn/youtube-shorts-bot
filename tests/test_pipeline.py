@@ -884,6 +884,8 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline, "generate_subtitle_clips", lambda *a: [])
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "get_ambient_music", lambda p, content_analysis=None, memory=None: None)
+    monkeypatch.setattr(pipeline, "validate_visual_storyboard", lambda scenes: {"scene_count": len(scenes)})
+    monkeypatch.setattr(pipeline, "validate_visual_sources", lambda sources, scenes, min_relevance=0.65: {"passed": True, "scene_count": len(scenes), "results": []})
     monkeypatch.setattr(pipeline, "validate_video_quality", lambda p: {"passed": True})
     monkeypatch.setattr(pipeline, "send_to_telegram", lambda *a, **kw: None)
 
