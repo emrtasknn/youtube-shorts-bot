@@ -6,7 +6,6 @@ import os
 import random
 import re
 import time
-import urllib.parse
 from pathlib import Path
 
 import edge_tts
