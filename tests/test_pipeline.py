@@ -822,7 +822,8 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
                 "ending_strategy": "clean",
             }
             for i in range(7)
-        ]
+        ],
+    )
 
     dummy_audio = tmp_path / "voice.mp3"
     dummy_audio.write_bytes(b"audio")
