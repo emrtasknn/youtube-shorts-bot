@@ -64,9 +64,10 @@ def _provider_order() -> list[str]:
 
 
 def _configured(provider: str) -> bool:
+    if provider == "cloudflare":
+        return bool(_env("CLOUDFLARE_ACCOUNT_ID") and _env("CLOUDFLARE_API_TOKEN"))
     required = {
         "imagen": "GEMINI_API_KEY",
-        "cloudflare": "CLOUDFLARE_API_TOKEN",
         "fal": "FAL_KEY",
         "together": "TOGETHER_API_KEY",
         "deepai": "DEEPAI_API_KEY",
