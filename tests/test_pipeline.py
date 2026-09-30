@@ -840,7 +840,7 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     dummy_audio = tmp_path / "voice.mp3"
     dummy_audio.write_bytes(b"audio")
 
-    async def fake_voice(text, path, *args):
+    async def fake_voice(text, path, *args, **kwargs):
         path.write_bytes(b"voice")
         return [{"word": "Sahne", "start": 0.0, "end": 20.0}]
 
