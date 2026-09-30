@@ -2572,10 +2572,16 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             )
             scene["image_qc"] = qc_result
             if not qc_result.get("valid", True):
-                log.warning(
-                    "Scene %d: image QC did not pass after %d attempt(s) (%s); "
-                    "proceeding with available image.",
-                    i, qc_result.get("attempts", 1), qc_result.get("reason", ""),
+                # Never enter enhancement/compositing without a real image.
+                # The old behavior attempted to continue and later crashed
+                # with FileNotFoundError in enhance_source_image().
+                reason = qc_result.get("reason", "unknown")
+                log.error(
+                    "Scene %d: image generation/QC failed after %d attempt(s): %s",
+                    i, qc_result.get("attempts", 1), reason,
+                )
+                raise RuntimeError(
+                    f"Scene {i:02d} image generation failed after provider fallback/QC: {reason}"
                 )
             else:
                 log.info(
