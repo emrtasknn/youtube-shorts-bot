@@ -87,7 +87,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          AI_PROVIDER_ORDER: ${{ secrets.AI_PROVIDER_ORDER || 'gemini,openrouter,groq,openai' }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || '' }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4.1-mini' }}
           OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'openai/gpt-4.1-mini' }}
