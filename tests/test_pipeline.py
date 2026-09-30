@@ -336,7 +336,7 @@ def test_evaluate_script_quality_scoring():
 
     # 2. Script lacking hook in scene 1 and loop in scene 7
     bad_scenes = [
-        {"narration": "Bu olayın neden böyle geliştiğini anlamak için yıllarca araştırma yapıldı ve kesin cevap bulunamadı.", "image_prompt": "prompt 1"},
+        {"narration": "İnsanlar yıllarca bu olay hakkında araştırma yaptı ancak kesin bir açıklama ortaya çıkmadı.", "image_prompt": "prompt 1"},
         {"narration": "Hava bugün oldukça güneşliydi ve güzeldi.", "image_prompt": "prompt 2"},
         {"narration": "Yolda yürürken küçük bir kedi gördüler.", "image_prompt": "prompt 3"},
         {"narration": "Kedi ağacın dalına doğru tırmanmaya başladı.", "image_prompt": "prompt 4"},
