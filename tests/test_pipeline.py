@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 
+from PIL import Image
+
 # Ensure repo root is on sys.path for pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -879,7 +881,12 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
             Path(path).write_bytes(b"final")
 
     monkeypatch.setattr(pipeline, "CompositeVideoClip", lambda *a, **kw: FakeVideo())
-    monkeypatch.setattr(pipeline, "download_ai_image", lambda prompt, path: Path(path).write_bytes(b"img"))
+
+    def fake_download_ai_image(prompt, path):
+        Image.new("RGB", (1080, 1920), "white").save(path, format="JPEG", quality=90)
+        return Path(path)
+
+    monkeypatch.setattr(pipeline, "download_ai_image", fake_download_ai_image)
     monkeypatch.setattr(pipeline, "build_scene_clip", lambda *a, **kw: None)
     monkeypatch.setattr(pipeline, "generate_subtitle_clips", lambda *a: [])
     monkeypatch.setattr(pipeline, "create_hook_badge", lambda *a, **kw: None)
