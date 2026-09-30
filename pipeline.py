@@ -2785,6 +2785,25 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
     content_entry["event_id"] = event_record["event_id"]
     content_memory_module.save_content_entry(content_entry)
 
+    # Build reusable attribution records for real-media sources.
+    media_credits = []
+    seen_credit_urls = set()
+    for src in visual_sources:
+        source_type = str(src.get("source_type", "")).lower()
+        if source_type not in {"pexels", "pixabay", "unsplash"}:
+            continue
+        page_url = str(src.get("page_url", "")).strip()
+        if not page_url or page_url in seen_credit_urls:
+            continue
+        seen_credit_urls.add(page_url)
+        media_credits.append({
+            "provider": source_type,
+            "title": str(src.get("title", "")).strip(),
+            "author": str(src.get("author", "")).strip(),
+            "page_url": page_url,
+        })
+    topic_compat["real_media_credits"] = media_credits
+
     metadata = {
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "event_record": event_record,
@@ -2813,6 +2832,7 @@ def run(auto_publish: bool | None = None, run_id: str | None = None, content_typ
             "pitch": voice_profile["pitch"],
         },
         "visual_sources": visual_sources,
+        "real_media_credits": media_credits,
         "visual_intents": [scene.get("visual_intent", {}) for scene in scenes],
         "visual_storyboard_qa": storyboard_qa,
         "visual_qa": visual_qa,
