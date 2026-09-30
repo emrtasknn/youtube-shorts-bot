@@ -53,12 +53,19 @@ def _configured(provider: str) -> bool:
     return bool(key and os.getenv(key, "").strip())
 
 
+def _env_or_default(name: str, default: str) -> str:
+    # GitHub Actions can inject an unset optional secret/env var as an empty
+    # string. Treat blank values as unset so provider defaults still apply.
+    value = os.getenv(name, "").strip()
+    return value or default
+
+
 def _model_for(provider: str) -> str:
     defaults = {
-        "gemini": os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"),
-        "openrouter": os.getenv("OPENROUTER_MODEL", "openai/gpt-4.1-mini"),
-        "groq": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
-        "openai": os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+        "gemini": _env_or_default("GEMINI_MODEL", "gemini-3.1-flash-lite"),
+        "openrouter": _env_or_default("OPENROUTER_MODEL", "openai/gpt-4.1-mini"),
+        "groq": _env_or_default("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "openai": _env_or_default("OPENAI_MODEL", "gpt-4.1-mini"),
     }
     return defaults[provider]
 
