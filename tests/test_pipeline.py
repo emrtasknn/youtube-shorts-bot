@@ -803,11 +803,26 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipeline,
         "generate_viral_script",
-        lambda topic=None, content_memory=None: (
-            [{"narration": f"Sahne {i} anlatımı burada yer alıyor.", "image_prompt": f"prompt {i}"} for i in range(7)],
-            {"title": "Test Konu", "hook_question": "Soru?"},
-        ),
-    )
+        lambda candidate, research_dossier, content_type="TREND_HISTORY": [
+            {
+                "narration": f"Sahne {i} anlatımı burada yer alıyor.",
+                "image_prompt": f"prompt {i}",
+                "visual_fact": f"Test görsel gerçeği {i}",
+                "visual_role": "reconstruction",
+                "visual_intent": {
+                    "primary_subject": "test subject",
+                    "visual_action": "test action",
+                    "scene_context": "test context",
+                    "shot_type": "medium shot",
+                    "composition": "test composition",
+                    "must_show": ["test object", "test setting"],
+                    "avoid": ["modern object", "generic stock photo"],
+                    "search_queries": ["test historical event"],
+                },
+                "ending_strategy": "clean",
+            }
+            for i in range(7)
+        ]
 
     dummy_audio = tmp_path / "voice.mp3"
     dummy_audio.write_bytes(b"audio")
@@ -816,6 +831,25 @@ def test_auto_publish_flag_behavior(monkeypatch, tmp_path):
         path.write_bytes(b"voice")
         return [{"word": "Sahne", "start": 0.0, "end": 20.0}]
 
+    monkeypatch.setattr(
+        pipeline.event_memory,
+        "run_discovery_pipeline",
+        lambda: (
+            {
+                "canonical_title": "Test Konu",
+                "title_tr": "Test Konu",
+                "content_type": "TREND_HISTORY",
+                "hook_question": "Soru?",
+                "event_id": "event_test",
+            },
+            {
+                "story_hook": "Soru?",
+                "verified_facts": ["Test gerçeği"],
+                "disputed_claims": [],
+                "possible_myths": [],
+            },
+        ),
+    )
     monkeypatch.setattr(pipeline, "create_voice_with_timestamps", fake_voice)
 
     class FakeAudio:
