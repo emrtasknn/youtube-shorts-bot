@@ -2105,7 +2105,7 @@ def validate_visual_sources(visual_sources: list[dict], scenes: list[dict], min_
                 f"Visual QA failed: scene {idx} planned event specificity {planned_specificity:.2f} < 0.70"
             )
 
-        if source_type in ("wikimedia", "openverse"):
+        if source_type in ("wikimedia", "openverse", "pexels", "pixabay", "unsplash"):
             relevance = float(source.get("relevance_score", 0))
             specificity = float(source.get("event_specificity", 0))
             density = float(source.get("information_density", 0))
