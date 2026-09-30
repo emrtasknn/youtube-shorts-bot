@@ -23,7 +23,7 @@ from pathlib import Path
 log = logging.getLogger("shorts-bot.video")
 
 
-DEFAULT_PROVIDER_ORDER = ["omni", "veo31", "veo31_fast", "veo31_lite"]
+DEFAULT_PROVIDER_ORDER = ["omni", "veo31_fast", "veo31_lite", "veo31"]
 
 
 class VideoProviderError(RuntimeError):
@@ -247,7 +247,7 @@ def _veo(prompt: str, filename: Path, *, model: str, image_path: Path | None = N
     else:
         client.files.download(file=video, destination=str(filename))
 
-    return VideoResponse("veo31" if model.endswith("generate-preview") else model, model, filename)
+    provider_name = "veo31"\n    if "fast" in model:\n        provider_name = "veo31_fast"\n    elif "lite" in model:\n        provider_name = "veo31_lite"\n    return VideoResponse(provider_name, model, filename)
 
 
 _HANDLERS = {
