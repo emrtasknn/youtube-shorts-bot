@@ -245,8 +245,8 @@ def test_generate_youtube_title_sanitizes_ai_output(monkeypatch):
         text = '"Bir Adres Londra\'yı Nasıl Kaosa Sürükledi?" #Shorts'
 
     monkeypatch.setattr(
-        pipeline.gemini_config,
-        "call_gemini_with_retry",
+        pipeline.ai_provider,
+        "generate",
         lambda **kwargs: FakeResponse(),
     )
     result = pipeline.generate_youtube_title(
