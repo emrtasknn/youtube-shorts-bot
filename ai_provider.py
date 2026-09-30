@@ -205,7 +205,16 @@ def generate(
                 )
                 return result
             except Exception as exc:
-                retryable = bool(getattr(exc, "retryable", False))
+                error_text = str(exc).lower()
+                retryable = bool(getattr(exc, "retryable", False)) or any(
+                    marker in error_text
+                    for marker in (
+                        "429", "too many requests", "rate limit",
+                        "resource_exhausted", "quota exceeded",
+                        "503", "service unavailable", "unavailable",
+                        "deadline exceeded", "timed out", "timeout",
+                    )
+                )
                 message = f"{provider}/{_model_for(provider)} attempt {attempt}: {type(exc).__name__}: {exc}"
                 failures.append(message)
                 log.warning("%s failed: %s", label, message)
